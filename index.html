@@ -1,0 +1,4786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cat Code Summoner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --panel-bg:#fff8f0;
+    --ink:#4a3a2f;
+    --accent:#ff9a62;
+    --accent-dark:#e87a3f;
+    --good:#5cb85c;
+    --bad:#e05555;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(135deg,#ffe8d6,#ffd3e0 45%,#c9e8ff);
+    font-family:'Segoe UI', Verdana, sans-serif;
+    color:var(--ink);
+    padding:20px;
+  }
+  .wrap{
+    display:flex;
+    gap:18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .game-card{
+    background:var(--panel-bg);
+    border-radius:20px;
+    padding:16px;
+    box-shadow:0 14px 30px rgba(0,0,0,0.18);
+    width:672px;
+    max-width:100%;
+  }
+  h1{
+    margin:0 0 4px;
+    font-size:22px;
+    text-align:center;
+  }
+  .subtitle{
+    text-align:center;
+    font-size:13px;
+    opacity:0.75;
+    margin-bottom:10px;
+  }
+  .canvas-wrap{
+    position:relative;
+  }
+  canvas{
+    display:block;
+    border-radius:14px;
+    border:4px solid #fff;
+    box-shadow:inset 0 0 0 2px #e8c9a8;
+    background:#bfe6a0;
+    touch-action:none;
+    /* Internal drawing/logic resolution stays a fixed 640x440 (see the
+       width/height attributes on the <canvas> tag); this just lets the
+       rendered size shrink to fit small screens while keeping the same
+       aspect ratio. Tap coordinates are converted back into the 640x440
+       space by canvasPointFromEvent() in the script below. */
+    width:100%;
+    max-width:640px;
+    height:auto;
+  }
+  .level-overlay{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(20,10,5,0.55);
+    z-index:1000;
+    padding:20px;
+    overflow-y:auto;
+  }
+  .level-overlay.hidden{ display:none; }
+  .overlay-card{
+    background:#fff8f0;
+    padding:22px 28px;
+    border-radius:16px;
+    text-align:center;
+    max-width:min(480px, 92vw);
+    max-height:90vh;
+    overflow-y:auto;
+    box-shadow:0 10px 26px rgba(0,0,0,0.3);
+  }
+  .overlay-card h2{ margin:0 0 8px; font-size:20px; }
+  .overlay-card p{ margin:0 0 14px; font-size:13px; opacity:0.8; }
+  .overlay-actions{ display:flex; gap:10px; justify-content:center; }
+  .overlay-actions button.secondary{ background:#ddd; color:#333; }
+  .overlay-actions button.secondary:hover{ background:#ccc; }
+  .overlay-actions.stacked{ flex-direction:column; align-items:stretch; }
+  .overlay-actions.stacked button{ width:100%; }
+  .overlay-actions.stacked button:disabled{ opacity:0.6; }
+  .pick-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .pick-card{
+    background:#fff;
+    border:2px solid #e8c9a8;
+    border-radius:10px;
+    padding:6px;
+    cursor:pointer;
+    text-align:center;
+  }
+  .pick-card.selected{
+    border-color:var(--accent);
+    box-shadow:0 4px 10px rgba(232,122,63,0.3);
+  }
+  .pick-name{
+    font-size:11px;
+    font-weight:600;
+    margin-top:2px;
+  }
+  .pick-sub{
+    font-size:10px;
+    opacity:0.7;
+    margin-top:1px;
+  }
+  .pick-pagination{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:14px;
+  }
+  .pick-pagination button{
+    flex:0 0 auto;
+    padding:6px 12px;
+    font-size:12px;
+    border-radius:20px;
+  }
+  .pick-pagination button:disabled{ opacity:0.5; }
+  .pick-pagination-label{
+    font-size:12px;
+    opacity:0.8;
+  }
+  #saveSlotBtn{
+    background:#ddd;
+    color:#333;
+    flex:0 0 auto;
+    padding:8px 12px;
+    font-size:12px;
+    border-radius:20px;
+  }
+  #saveSlotBtn:hover{ background:#ccc; }
+  .slot-card{
+    background:#fff;
+    border:2px solid #e8c9a8;
+    border-radius:12px;
+    padding:12px;
+    margin-bottom:10px;
+    text-align:left;
+  }
+  .slot-card.active{
+    border-color:var(--accent);
+    box-shadow:0 4px 10px rgba(232,122,63,0.3);
+  }
+  .slot-card .slot-title{ font-weight:700; font-size:14px; margin-bottom:2px; }
+  .slot-card .slot-sub{ font-size:11px; opacity:0.75; margin-bottom:8px; }
+  .slot-card .slot-actions{ display:flex; gap:8px; }
+  .slot-card .slot-actions button{ flex:1; padding:6px 10px; font-size:12px; }
+  .hidden{ display:none !important; }
+  #levelHud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:12px;
+    font-size:13px;
+    background:#fff2e2;
+    padding:8px 12px;
+    border-radius:10px;
+    gap:10px;
+  }
+  #levelHud .hud-name{ font-weight:700; }
+  #levelHud .hud-hearts{ font-size:15px; letter-spacing:1px; }
+  #levelHud button{ padding:6px 12px; font-size:12px; }
+  #battlePanel{
+    margin-top:10px;
+    background:#fff2e2;
+    border-radius:10px;
+    padding:10px 12px;
+    text-align:center;
+  }
+  #waveBanner{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:0.4px;
+    text-transform:uppercase;
+    opacity:0.65;
+    margin-bottom:4px;
+    min-height:14px;
+  }
+  #turnBanner{
+    font-size:14px;
+    font-weight:600;
+    margin-bottom:8px;
+    min-height:18px;
+  }
+  #attackChoices{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  #attackChoices button{
+    width:100%;
+    padding:8px 10px;
+    font-size:13px;
+    text-align:left;
+    line-height:1.3;
+  }
+  #attackChoices button .move-name{
+    display:block;
+    font-weight:700;
+    font-size:13px;
+  }
+  #attackChoices button .move-desc{
+    display:block;
+    font-weight:400;
+    font-size:11px;
+    opacity:0.75;
+  }
+  .controls-row{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+  }
+  #codeForm{
+    display:flex;
+    gap:8px;
+    flex:1;
+  }
+  #codeInput{
+    flex:1;
+    padding:10px 12px;
+    border-radius:10px;
+    border:2px solid #e8c9a8;
+    font-size:16px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    outline:none;
+    transition:border-color .15s, transform .15s;
+  }
+  #codeInput:focus{
+    border-color:var(--accent);
+  }
+  #codeInput.shake{
+    animation:shake .35s;
+    border-color:var(--bad);
+  }
+  .shake{
+    animation:shake .35s;
+    border-color:var(--bad) !important;
+  }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-6px);}
+    40%{transform:translateX(6px);}
+    60%{transform:translateX(-4px);}
+    80%{transform:translateX(4px);}
+  }
+  #renameInput{
+    display:block;
+    width:100%;
+    box-sizing:border-box;
+    padding:10px 12px;
+    border-radius:10px;
+    border:2px solid #e8c9a8;
+    font-size:16px;
+    outline:none;
+    margin:6px 0 14px;
+    transition:border-color .15s;
+  }
+  #renameInput:focus{
+    border-color:var(--accent);
+  }
+  button{
+    border:none;
+    border-radius:10px;
+    background:var(--accent);
+    color:#fff;
+    font-weight:600;
+    font-size:15px;
+    padding:0 18px;
+    min-height:44px;
+    cursor:pointer;
+    transition:background .15s, transform .1s;
+  }
+  button:hover{ background:var(--accent-dark); }
+  button:active{ transform:scale(0.96); }
+  button:disabled{ background:#ccc; cursor:not-allowed; }
+  button:disabled:hover{ background:#ccc; }
+  .hint-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:8px;
+    font-size:12px;
+    opacity:0.7;
+  }
+  .hint-toggle{
+    background:none;
+    color:var(--ink);
+    text-decoration:underline;
+    padding:0;
+    font-size:12px;
+    opacity:0.8;
+  }
+  .hint-toggle:hover{ background:none; opacity:1; }
+  #hintBox{
+    display:none;
+    margin-top:6px;
+    font-size:12px;
+    background:#fff2e2;
+    border-radius:8px;
+    padding:8px 10px;
+    line-height:1.5;
+  }
+  #hintBox.show{ display:block; }
+  .side-panel{
+    background:var(--panel-bg);
+    border-radius:20px;
+    padding:16px;
+    box-shadow:0 14px 30px rgba(0,0,0,0.18);
+    width:230px;
+    max-width:100%;
+  }
+  .side-panel h2{
+    margin:0 0 10px;
+    font-size:16px;
+    text-align:center;
+  }
+  .progress{
+    text-align:center;
+    font-size:13px;
+    margin-bottom:10px;
+    opacity:0.8;
+  }
+  .cat-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .cat-slot{
+    background:#fff;
+    border:2px dashed #e8c9a8;
+    border-radius:12px;
+    padding:8px 4px;
+    text-align:center;
+    transition:transform .2s;
+  }
+  .cat-slot.unlocked{
+    border-style:solid;
+    border-color:var(--accent);
+    box-shadow:0 4px 10px rgba(232,122,63,0.25);
+    cursor:pointer;
+  }
+  .cat-slot.unlocked:hover{
+    transform:translateY(-2px);
+  }
+  .collection-hint{
+    text-align:center;
+    font-size:11px;
+    opacity:0.7;
+    margin:-6px 0 10px;
+  }
+  .pet-stats-list{
+    text-align:left;
+    margin:14px 0;
+    font-size:14px;
+  }
+  .pet-stats-list div{
+    display:flex;
+    justify-content:space-between;
+    padding:6px 0;
+    border-bottom:1px solid #f0dfc8;
+  }
+  .pet-stats-list div:last-child{ border-bottom:none; }
+  .cat-slot canvas{
+    border:none;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+    display:block;
+    margin:0 auto;
+  }
+  .cat-slot .cat-name{
+    font-size:11px;
+    margin-top:4px;
+    font-weight:600;
+    min-height:14px;
+  }
+  .cat-slot.locked .cat-name{ opacity:0.4; }
+  .cat-slot .cat-happy{ font-size:10px; margin-top:2px; opacity:0.75; }
+  #levelList{
+    max-height:360px;
+    overflow-y:auto;
+    padding-right:4px;
+  }
+  .level-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#fff;
+    border:2px solid #e8c9a8;
+    border-radius:12px;
+    padding:8px 10px;
+    margin-bottom:8px;
+    gap:8px;
+  }
+  .level-row.locked{ opacity:0.55; }
+  .level-row .level-name{ font-weight:700; font-size:13px; }
+  .level-row .level-sub{ font-size:11px; opacity:0.75; margin-top:2px; }
+  .level-row button{ padding:6px 12px; font-size:12px; white-space:nowrap; }
+  .cleared-badge{ display:block; font-size:10px; color:var(--good); font-weight:700; margin-top:2px; }
+  .xp-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:10px;
+  }
+  .xp-badge{
+    font-size:13px;
+    font-weight:700;
+    background:#fff2e2;
+    border-radius:20px;
+    padding:8px 14px;
+    flex:1;
+    text-align:center;
+  }
+  .shop-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#fff;
+    border:2px solid #e8c9a8;
+    border-radius:12px;
+    padding:8px 10px;
+    margin-bottom:8px;
+    gap:8px;
+    text-align:left;
+  }
+  .shop-row .shop-name{ font-weight:700; font-size:13px; }
+  .shop-row .shop-sub{ font-size:11px; opacity:0.75; margin-top:2px; }
+  .shop-row button{ padding:6px 12px; font-size:12px; white-space:nowrap; }
+  #toastArea{
+    position:relative;
+    height:0;
+  }
+  .toast{
+    position:absolute;
+    left:50%;
+    top:-46px;
+    transform:translateX(-50%);
+    background:#333;
+    color:#fff;
+    padding:8px 16px;
+    border-radius:20px;
+    font-size:13px;
+    white-space:nowrap;
+    animation:toastPop 2.4s ease forwards;
+    pointer-events:none;
+  }
+  .toast.good{ background:var(--good); }
+  .toast.bad{ background:var(--bad); }
+  @keyframes toastPop{
+    0%{ opacity:0; transform:translate(-50%,6px) scale(0.9); }
+    12%{ opacity:1; transform:translate(-50%,0) scale(1); }
+    80%{ opacity:1; }
+    100%{ opacity:0; transform:translate(-50%,-10px) scale(0.95); }
+  }
+  .pet-action-bar{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  .pet-action-bar.hidden{ display:none; }
+  .pet-action-bar button{
+    flex:1;
+    font-size:13px;
+    padding:0 6px;
+  }
+
+  /* Mobile/tablet tweaks - the layout above already shrinks fine on its
+     own (game-card/side-panel/canvas all use max-width:100%), this just
+     polishes spacing and tap targets once things start stacking. */
+  @media (max-width: 700px){
+    body{ padding:10px; }
+    .wrap{ gap:12px; }
+    .game-card, .side-panel{ padding:12px; }
+    .xp-row{ flex-wrap:wrap; }
+    .xp-row span{ flex-basis:100%; }
+    #saveSlotBtn{ min-height:40px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game-card">
+    <h1>🐾 Cat Code Summoner</h1>
+    <div class="subtitle">In the yard: tap anywhere to walk there &middot; Summon a cat or dog by typing its code &middot; In battle: take turns and tap Attack!</div>
+    <div id="toastArea"></div>
+    <div class="canvas-wrap">
+      <canvas id="game" width="640" height="440"></canvas>
+      <div id="levelOverlay" class="level-overlay hidden">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">Level Cleared!</h2>
+          <p id="overlaySub"></p>
+          <div class="overlay-actions">
+            <button id="overlayPrimary">Next Level</button>
+            <button id="overlayHub" class="secondary" type="button">Back to Hub</button>
+          </div>
+        </div>
+      </div>
+      <div id="modeOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="modeOverlayCard"></div>
+      </div>
+      <div id="shopOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="shopOverlayCard"></div>
+      </div>
+      <div id="swapOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="swapOverlayCard"></div>
+      </div>
+      <div id="saveOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="saveOverlayCard"></div>
+      </div>
+      <div id="roomOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="roomOverlayCard"></div>
+      </div>
+      <div id="petRoomOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="petRoomOverlayCard"></div>
+      </div>
+      <div id="petStatsOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="petStatsOverlayCard"></div>
+      </div>
+      <div id="renameOverlay" class="level-overlay hidden">
+        <div class="overlay-card" id="renameOverlayCard"></div>
+      </div>
+    </div>
+
+    <div id="petActionBar" class="pet-action-bar">
+      <button id="actionFeedBtn" type="button" class="secondary" disabled>Feed 🍖</button>
+      <button id="actionSwapBtn" type="button" class="secondary" disabled>Swap 🎀</button>
+      <button id="actionRenameBtn" type="button" class="secondary" disabled>Rename ✏️</button>
+    </div>
+
+    <div id="levelHud" class="hidden">
+      <span class="hud-name" id="hudLevelName">Level</span>
+      <span class="hud-hearts" id="hudHearts"></span>
+      <span id="hudEnemies">Enemies left: 0</span>
+      <button id="retreatBtn" type="button">Retreat</button>
+    </div>
+
+    <div id="battlePanel" class="hidden">
+      <div id="waveBanner"></div>
+      <div id="turnBanner">Choose your move</div>
+      <div id="attackChoices"></div>
+    </div>
+
+    <div id="hubControls">
+      <div class="controls-row">
+        <form id="codeForm" autocomplete="off">
+          <input id="codeInput" type="text" placeholder="Type a code..." maxlength="24">
+          <button type="submit">Summon</button>
+        </form>
+      </div>
+      <div class="hint-row">
+        <span id="statusMsg">Ready to summon!</span>
+        <button class="hint-toggle" id="hintToggle" type="button">show hints</button>
+      </div>
+      <div id="hintBox"></div>
+      <div class="xp-row">
+        <div class="xp-badge" id="xpBadge">✨ 0 XP</div>
+        <button id="saveSlotBtn" class="secondary" type="button" title="Switch, save, or delete save slots">💾 Slot -</button>
+        <span style="font-size:12px;opacity:0.75;">Walk up to the 🛒 stand to shop, or the 📖 stand to manage pet rooms!</span>
+      </div>
+      <div class="xp-row">
+        <span style="font-size:12px;opacity:0.75;">Tap a pet up close for Feed/Swap/Rename/Release, or tap one from afar to walk right over! Use the buttons above the yard when you're already close by. Step on the 🌀 pad to explore!</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="side-panel">
+    <h2>Pet Collection</h2>
+    <div class="progress" id="progressText">0 / 16 discovered</div>
+    <div class="collection-hint">Tap a pet to see its level, HP, and attack!</div>
+    <div class="cat-grid" id="catGrid"></div>
+  </div>
+
+  <div class="side-panel">
+    <h2>Levels</h2>
+    <div id="levelList"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ------------------------------------------------------------------
+   * CAT ROSTER
+   * To add a new summonable cat later, just push another object onto
+   * this array:
+   *   {
+   *     id: 'unique-id',
+   *     name: 'Display Name',
+   *     code: 'SUMMONCODE',        // what the player types (case-insensitive)
+   *     base: '#hexcolor',         // main fur color
+   *     pattern: 'patches' | 'stripes' | 'solid',
+   *     patchColors: ['#hex', ...] // used when pattern === 'patches'/'stripes'
+   *     roundness: 1.0             // >1 = chubbier/rounder (British Shorthair etc.)
+   *   }
+   * No other code needs to change - drawCat() renders everything generically.
+   * ---------------------------------------------------------------- */
+  const CATS = [
+    { id:'calico',    name:'Calico',             code:'CALICO',    base:'#ffffff', pattern:'patches', patchColors:['#e8862c','#2b2320'], roundness:1.0 },
+    { id:'tuxedo',     name:'Tuxedo Cat',         code:'TUXEDO',    base:'#232020', pattern:'patches', patchColors:['#ffffff'],            roundness:1.0 },
+    { id:'tabby',      name:'Brown Tabby',        code:null,        base:'#b5793d', pattern:'stripes', patchColors:['#7a4e22'],            roundness:1.0,  shopOnly:true, eliteBonusHp:2, eliteBonusDmg:1 },
+    { id:'shorthair',  name:'British Shorthair',  code:null,        base:'#9aa3ad', pattern:'solid',   patchColors:[],                      roundness:1.25, shopOnly:true, eliteBonusHp:2, eliteBonusDmg:1 },
+    { id:'tortie',     name:'Tortoiseshell',      code:'TORTIE',    base:'#3a2a20', pattern:'patches', patchColors:['#c9701f','#7a4e22'],  roundness:1.0 },
+    { id:'siamese',    name:'Siamese',            code:'SIAMESE',   base:'#e8dcc8', pattern:'patches', patchColors:['#5a4636'],            roundness:0.95 },
+    { id:'mainecoon',  name:'Maine Coon',         code:'MAINECOON',base:'#8a6a45', pattern:'stripes', patchColors:['#5a4128'],            roundness:1.15 },
+    { id:'sphynx',     name:'Sphynx',             code:null,        base:'#d9b8a3', pattern:'solid',   patchColors:[],                      roundness:0.9,  shopOnly:true, eliteBonusHp:2, eliteBonusDmg:1 },
+    // Catch-only breeds - never appear in the shop or accept a summon
+    // code. The only way to discover them is landing a successful Catch
+    // on their matching wild enemy in a late-game battle (see ENEMY_TYPES
+    // `catchBreed` and attemptCatch()).
+    { id:'wildcat',    name:'Wild Cat',           code:null,        base:'#c9a06a', pattern:'stripes', patchColors:['#8a6a45'],            roundness:0.95, catchOnly:true, eliteBonusHp:3, eliteBonusDmg:2 },
+    { id:'snowlynx',   name:'Snow Lynx',          code:null,        base:'#e8e4da', pattern:'patches', patchColors:['#c7c2b6'],            roundness:1.0,  catchOnly:true, eliteBonusHp:4, eliteBonusDmg:2 }
+  ];
+
+  // The player's own cat character - a distinct ginger cat with a bandana so
+  // it never gets confused with any summonable breed above.
+  const HERO_CAT = { id:'hero', name:'You', base:'#e8862c', pattern:'solid', patchColors:[], roundness:1.0 };
+
+  /* ------------------------------------------------------------------
+   * DOG ROSTER
+   * Same idea as CATS, but rendered by drawDog() instead of drawCat().
+   * earStyle: 'floppy' | 'pointy', shortLegs/flatSnout give a couple of
+   * breeds (Corgi, Pug) a distinct silhouette.
+   * ---------------------------------------------------------------- */
+  const DOGS = [
+    { id:'golden',   name:'Golden Retriever', code:null,       base:'#e8b563', snout:'#c9915a', pattern:'solid',   patchColors:[],          roundness:1.05, earStyle:'floppy', shortLegs:false, flatSnout:false, shopOnly:true, eliteBonusHp:2, eliteBonusDmg:1 },
+    { id:'labrador', name:'Labrador',         code:'LABRADOR', base:'#6b4a32', snout:'#4a3324', pattern:'solid',   patchColors:[],          roundness:1.1,  earStyle:'floppy', shortLegs:false, flatSnout:false },
+    { id:'shepherd', name:'German Shepherd',  code:null,       base:'#c9a06a', snout:'#2b2320', pattern:'patches', patchColors:['#2b2320'], roundness:0.95, earStyle:'pointy', shortLegs:false, flatSnout:false, shopOnly:true, eliteBonusHp:2, eliteBonusDmg:1 },
+    { id:'corgi',    name:'Corgi',            code:'CORGI',    base:'#e8b563', snout:'#e8b563', pattern:'patches', patchColors:['#ffffff'], roundness:1.2,  earStyle:'pointy', shortLegs:true,  flatSnout:false },
+    { id:'pug',      name:'Pug',              code:'PUG',      base:'#d9b578', snout:'#3a2a20', pattern:'patches', patchColors:['#3a2a20'], roundness:1.3,  earStyle:'floppy', shortLegs:true,  flatSnout:true  },
+    { id:'husky',      name:'Siberian Husky', code:'HUSKY',      base:'#8a8f94', snout:'#e8e8e8', pattern:'patches', patchColors:['#ffffff'], roundness:1.0,  earStyle:'pointy', shortLegs:false, flatSnout:false },
+    { id:'dachshund',  name:'Dachshund',      code:'DACHSHUND',  base:'#8a4a28', snout:'#5a3018', pattern:'solid',   patchColors:[],          roundness:1.0,  earStyle:'floppy', shortLegs:true,  flatSnout:false },
+    { id:'poodle',     name:'Poodle',         code:null,         base:'#f0e6d2', snout:'#d9c9a8', pattern:'solid',   patchColors:[],          roundness:1.15, earStyle:'floppy', shortLegs:false, flatSnout:false, shopOnly:true, eliteBonusHp:2, eliteBonusDmg:1 }
+  ];
+
+  /* ------------------------------------------------------------------
+   * DRAGON ROSTER
+   * A single, wholly different species only obtainable by catching the
+   * Ancient Dragon boss in a late-game level. Rendered by drawDragon()
+   * instead of drawCat()/drawDog() and, unlike every other pet, changes
+   * appearance as it levels up: egg (Lv 1-4) -> baby (Lv 5-29) ->
+   * grown/adult (Lv 30+). See dragonStageFor().
+   * ---------------------------------------------------------------- */
+  const DRAGONS = [
+    { id:'dragon', name:'Ancient Dragon', code:null, base:'#4a9fd8', pattern:'solid', patchColors:[], roundness:1.0, catchOnly:true, eliteBonusHp:6, eliteBonusDmg:4 }
+  ];
+  const DRAGON_BABY_LEVEL = 5;
+  const DRAGON_ADULT_LEVEL = 30;
+  function dragonStageFor(levelOrInst){
+    const lvl = (typeof levelOrInst === 'object') ? (levelOrInst.level||1) : (levelOrInst||1);
+    if (lvl >= DRAGON_ADULT_LEVEL) return 'adult';
+    if (lvl >= DRAGON_BABY_LEVEL) return 'baby';
+    return 'egg';
+  }
+
+  // Tag each roster with its species and merge into one lookup used for
+  // summon codes, the collection panel, and battle pickers.
+  CATS.forEach(c => c.species = 'cat');
+  DOGS.forEach(d => d.species = 'dog');
+  DRAGONS.forEach(d => d.species = 'dragon');
+  const PETS = CATS.concat(DOGS).concat(DRAGONS);
+
+  const discovered = new Set();
+
+  /* ------------------------------------------------------------------
+   * Generic cat renderer - works for the hero and any entry in CATS
+   * ---------------------------------------------------------------- */
+  function drawCat(ctx, cx, cy, size, cat, opts){
+    opts = opts || {};
+    const bob = opts.bob || 0;
+    const scale = opts.scale === undefined ? 1 : opts.scale;
+    const flip = opts.flip ? -1 : 1;
+
+    ctx.save();
+    ctx.translate(cx, cy + bob);
+    ctx.scale(scale * flip, scale);
+
+    const r = size * cat.roundness;
+
+    // shadow
+    ctx.save();
+    ctx.translate(0, r*0.95);
+    ctx.scale(1, 0.32);
+    ctx.beginPath();
+    ctx.arc(0,0, r*0.85, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fill();
+    ctx.restore();
+
+    // tail
+    ctx.strokeStyle = cat.base;
+    ctx.lineWidth = r*0.28;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r*0.55, r*0.25);
+    ctx.quadraticCurveTo(r*1.25, r*0.1, r*1.1, -r*0.55);
+    ctx.stroke();
+
+    // body
+    ctx.beginPath();
+    ctx.ellipse(0, r*0.35, r*0.62, r*0.5, 0, 0, Math.PI*2);
+    ctx.fillStyle = cat.base;
+    ctx.fill();
+
+    // head
+    ctx.beginPath();
+    ctx.arc(0, -r*0.35, r*0.55, 0, Math.PI*2);
+    ctx.fillStyle = cat.base;
+    ctx.fill();
+
+    // ears
+    ctx.beginPath();
+    ctx.moveTo(-r*0.5, -r*0.65);
+    ctx.lineTo(-r*0.62, -r*1.12);
+    ctx.lineTo(-r*0.14, -r*0.78);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(r*0.5, -r*0.65);
+    ctx.lineTo(r*0.62, -r*1.12);
+    ctx.lineTo(r*0.14, -r*0.78);
+    ctx.closePath();
+    ctx.fill();
+    // inner ears
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.44, -r*0.72);
+    ctx.lineTo(-r*0.5, -r*0.98);
+    ctx.lineTo(-r*0.24, -r*0.8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(r*0.44, -r*0.72);
+    ctx.lineTo(r*0.5, -r*0.98);
+    ctx.lineTo(r*0.24, -r*0.8);
+    ctx.closePath();
+    ctx.fill();
+
+    // markings (clip to the union of body + head so patches stay inside the silhouette)
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, r*0.35, r*0.62, r*0.5, 0, 0, Math.PI*2);
+    ctx.ellipse(0, -r*0.35, r*0.55, r*0.55, 0, 0, Math.PI*2);
+    ctx.clip();
+
+    if (cat.pattern === 'patches'){
+      const seedShapes = [
+        {x:-r*0.32, y:-r*0.5, w:r*0.5, h:r*0.4, rot:-0.4},
+        {x:r*0.28,  y:-r*0.15,w:r*0.55,h:r*0.5, rot:0.3},
+        {x:-r*0.15, y:r*0.45, w:r*0.6, h:r*0.55,rot:0.1},
+        {x:r*0.35,  y:r*0.55, w:r*0.4, h:r*0.35,rot:-0.2}
+      ];
+      seedShapes.forEach((s,i)=>{
+        ctx.fillStyle = cat.patchColors[i % cat.patchColors.length];
+        ctx.beginPath();
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.rot);
+        ctx.ellipse(0,0,s.w,s.h,0,0,Math.PI*2);
+        ctx.restore();
+        ctx.fill();
+      });
+      // chest/belly blaze for tuxedo-style light patch, subtle for others
+      if (cat.id === 'tuxedo'){
+        ctx.fillStyle = cat.patchColors[0];
+        ctx.beginPath();
+        ctx.ellipse(0, r*0.55, r*0.28, r*0.42, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, -r*0.15, r*0.16, r*0.26, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else if (cat.pattern === 'stripes'){
+      ctx.strokeStyle = cat.patchColors[0];
+      ctx.lineWidth = r*0.09;
+      ctx.lineCap = 'round';
+      for(let i=-2;i<=2;i++){
+        ctx.beginPath();
+        ctx.moveTo(-r*0.5 + i*r*0.22, -r*1.0);
+        ctx.lineTo(-r*0.3 + i*r*0.3, r*0.95);
+        ctx.stroke();
+      }
+      // head stripes
+      ctx.beginPath();
+      ctx.moveTo(-r*0.3, -r*0.85);
+      ctx.lineTo(0, -r*0.55);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(r*0.3, -r*0.85);
+      ctx.lineTo(0, -r*0.55);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // bandana - marks the hero cat as the character you control
+    if (opts.bandana){
+      ctx.fillStyle = '#e0483f';
+      ctx.beginPath();
+      ctx.moveTo(-r*0.44, -r*0.05);
+      ctx.lineTo(r*0.44, -r*0.05);
+      ctx.lineTo(r*0.16, r*0.35);
+      ctx.lineTo(-r*0.16, r*0.35);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(r*0.32, r*0.02);
+      ctx.lineTo(r*0.58, r*0.26);
+      ctx.lineTo(r*0.36, r*0.32);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // face - closed, sleepy eyes while napping (carries into battle too if
+    // a pet was snoozing when it got sent in); open eyes otherwise
+    const eyeY = -r*0.4, eyeX = r*0.2;
+    if (opts.sleeping){
+      ctx.strokeStyle = '#1c1c1c';
+      ctx.lineWidth = r*0.045;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(-eyeX, eyeY, r*0.08, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(eyeX, eyeY, r*0.08, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#1c1c1c';
+      ctx.beginPath(); ctx.ellipse(-eyeX, eyeY, r*0.07, r*0.09, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(eyeX, eyeY, r*0.07, r*0.09, 0,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = '#e8879a';
+    ctx.beginPath(); ctx.moveTo(-r*0.06,-r*0.28); ctx.lineTo(r*0.06,-r*0.28); ctx.lineTo(0,-r*0.2); ctx.closePath(); ctx.fill();
+    // whiskers
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.2;
+    [-1,1].forEach(side=>{
+      for(let i=-1;i<=1;i++){
+        ctx.beginPath();
+        ctx.moveTo(side*r*0.2, -r*0.22 + i*r*0.06);
+        ctx.lineTo(side*r*0.65, -r*0.28 + i*r*0.1);
+        ctx.stroke();
+      }
+    });
+
+    // paws hint at bottom of body
+    ctx.fillStyle = cat.pattern==='patches' && cat.id==='tuxedo' ? cat.patchColors[0] : cat.base;
+    ctx.beginPath(); ctx.ellipse(-r*0.28, r*0.8, r*0.16, r*0.12,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r*0.28, r*0.8, r*0.16, r*0.12,0,0,Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * Generic dog renderer - works for any entry in DOGS. Shares the same
+   * bob/scale/flip opts contract as drawCat() so both can be driven by
+   * the same wander/battle code via drawPet() below.
+   * ---------------------------------------------------------------- */
+  function drawDog(ctx, cx, cy, size, dog, opts){
+    opts = opts || {};
+    const bob = opts.bob || 0;
+    const scale = opts.scale === undefined ? 1 : opts.scale;
+    const flip = opts.flip ? -1 : 1;
+
+    ctx.save();
+    ctx.translate(cx, cy + bob);
+    ctx.scale(scale * flip, scale);
+
+    const r = size * dog.roundness;
+    const legLen = dog.shortLegs ? r*0.16 : r*0.3;
+    const muzzleCol = dog.snout || dog.base;
+
+    // shadow
+    ctx.save();
+    ctx.translate(0, r*0.95);
+    ctx.scale(1, 0.32);
+    ctx.beginPath();
+    ctx.arc(0,0, r*0.85, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fill();
+    ctx.restore();
+
+    // tail - curls up into a happy hook instead of a straight wag
+    ctx.strokeStyle = dog.base;
+    ctx.lineWidth = r*0.26;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r*0.48, r*0.28);
+    ctx.quadraticCurveTo(r*1.2, r*0.05, r*1.05, -r*0.55);
+    ctx.quadraticCurveTo(r*0.98, -r*0.85, r*0.72, -r*0.72);
+    ctx.stroke();
+
+    // back legs (peeking out behind the body, drawn first so the front
+    // pair overlaps them for a bit of depth)
+    ctx.fillStyle = dog.base;
+    [-1,1].forEach(side=>{
+      ctx.beginPath();
+      ctx.ellipse(side*r*0.4, r*0.68, r*0.14, legLen*0.6, 0, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // body
+    ctx.beginPath();
+    ctx.ellipse(0, r*0.32, r*0.66, r*0.46, 0, 0, Math.PI*2);
+    ctx.fillStyle = dog.base;
+    ctx.fill();
+
+    // front legs + paws (drawn over the body's bottom edge)
+    ctx.fillStyle = dog.base;
+    [-1,1].forEach(side=>{
+      ctx.beginPath();
+      ctx.ellipse(side*r*0.26, r*0.72, r*0.16, legLen*0.7, 0, 0, Math.PI*2);
+      ctx.fill();
+    });
+    const pawCol = dog.pattern === 'patches' ? dog.patchColors[0] : muzzleCol;
+    ctx.fillStyle = pawCol;
+    [-1,1].forEach(side=>{
+      ctx.beginPath();
+      ctx.ellipse(side*r*0.26, r*0.78 + legLen*0.55, r*0.17, r*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.lineWidth = 1;
+      [-1,0,1].forEach(t=>{
+        ctx.beginPath();
+        ctx.moveTo(side*r*0.26 + t*r*0.07, r*0.72 + legLen*0.55);
+        ctx.lineTo(side*r*0.26 + t*r*0.07, r*0.8 + legLen*0.55);
+        ctx.stroke();
+      });
+    });
+
+    // ears - a pair of ovals attached near the top of the head.
+    const earLong = dog.earStyle === 'floppy';
+    const earCX = earLong ? r*0.48 : r*0.4;
+    const earCY = earLong ? -r*0.5 : -r*0.66;
+    const earRX = earLong ? r*0.19 : r*0.16;
+    const earRY = earLong ? r*0.5 : r*0.4;
+    const earRot = earLong ? 0.45 : 0.25;
+
+    ctx.fillStyle = dog.base;
+    [-1,1].forEach(side=>{
+      ctx.beginPath();
+      ctx.ellipse(side*earCX, earCY, earRX, earRY, side*earRot, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // inner-ear shading for a bit of depth
+    ctx.fillStyle = earLong ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.12)';
+    [-1,1].forEach(side=>{
+      ctx.beginPath();
+      ctx.ellipse(side*earCX, earCY + earRY*0.06, earRX*0.5, earRY*0.65, side*earRot, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // head
+    ctx.beginPath();
+    ctx.arc(0, -r*0.3, r*0.48, 0, Math.PI*2);
+    ctx.fillStyle = dog.base;
+    ctx.fill();
+
+    // muzzle - a rounder, more forward-projecting shape than a flat oval
+    const snoutScale = dog.flatSnout ? 0.6 : 1;
+    ctx.fillStyle = muzzleCol;
+    ctx.beginPath();
+    ctx.ellipse(0, -r*0.02*snoutScale, r*0.3*snoutScale + r*0.08, r*0.24*snoutScale + r*0.06, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // forehead wrinkles for flat-snouted breeds (Pug)
+    if (dog.flatSnout){
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.lineWidth = r*0.035;
+      for(let i=-1;i<=1;i++){
+        ctx.beginPath();
+        ctx.moveTo(-r*0.22, -r*0.56 + i*r*0.1);
+        ctx.quadraticCurveTo(0, -r*0.5 + i*r*0.1, r*0.22, -r*0.56 + i*r*0.1);
+        ctx.stroke();
+      }
+    }
+
+    // nose
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.ellipse(0, -r*0.08*snoutScale, r*0.08, r*0.06, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // smiling mouth + tongue for a friendly, panting look
+    ctx.strokeStyle = '#1c1c1c';
+    ctx.lineWidth = r*0.035;
+    ctx.beginPath();
+    ctx.moveTo(0, -r*0.02);
+    ctx.quadraticCurveTo(r*0.1, r*0.08, r*0.02, r*0.1);
+    ctx.stroke();
+    ctx.fillStyle = '#e8879a';
+    ctx.beginPath();
+    ctx.moveTo(r*0.02, r*0.09);
+    ctx.quadraticCurveTo(r*0.14, r*0.14, r*0.06, r*0.26);
+    ctx.quadraticCurveTo(r*0.0, r*0.18, r*0.02, r*0.09);
+    ctx.fill();
+
+    // markings, clipped to the body+head silhouette
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, r*0.32, r*0.66, r*0.46, 0, 0, Math.PI*2);
+    ctx.ellipse(0, -r*0.3, r*0.48, r*0.48, 0, 0, Math.PI*2);
+    ctx.clip();
+    if (dog.pattern === 'patches'){
+      ctx.fillStyle = dog.patchColors[0];
+      // chest/belly patch
+      ctx.beginPath();
+      ctx.ellipse(0, r*0.48, r*0.25, r*0.34, 0, 0, Math.PI*2);
+      ctx.fill();
+      // face mask (flat-snouted breeds) or back saddle (pointy/floppy breeds)
+      if (dog.flatSnout){
+        ctx.beginPath();
+        ctx.ellipse(0, -r*0.26, r*0.32, r*0.22, 0, 0, Math.PI*2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.ellipse(0, -r*0.04, r*0.4, r*0.28, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // eyes, with a little sparkle for a bright, friendly expression - or
+    // closed, sleepy arcs while napping (carries into battle too)
+    const eyeY = -r*0.34, eyeX = r*0.17;
+    if (opts.sleeping){
+      ctx.strokeStyle = '#1c1c1c';
+      ctx.lineWidth = r*0.045;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(-eyeX, eyeY, r*0.075, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(eyeX, eyeY, r*0.075, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#1c1c1c';
+      ctx.beginPath(); ctx.ellipse(-eyeX, eyeY, r*0.065, r*0.08, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(eyeX, eyeY, r*0.065, r*0.08, 0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.ellipse(-eyeX+r*0.025, eyeY-r*0.03, r*0.02, r*0.025, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(eyeX+r*0.025, eyeY-r*0.03, r*0.02, r*0.025, 0,0,Math.PI*2); ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * Generic dragon renderer - the only pet whose look changes as it
+   * levels up. `opts.stage` is 'egg' | 'baby' | 'adult' (see
+   * dragonStageFor()); defaults to 'adult' so icon-only contexts that
+   * don't have a live instance handy (shop previews, etc.) still show
+   * the full dragon.
+   * ---------------------------------------------------------------- */
+  function drawDragon(ctx, cx, cy, size, def, opts){
+    opts = opts || {};
+    const bob = opts.bob || 0;
+    const scale = opts.scale === undefined ? 1 : opts.scale;
+    const flip = opts.flip ? -1 : 1;
+    const stage = opts.stage || 'adult';
+    const base = def.base || '#2e7d46';
+
+    ctx.save();
+    ctx.translate(cx, cy + bob);
+    ctx.scale(scale * flip, scale);
+
+    // shadow
+    ctx.save();
+    ctx.translate(0, size*0.95);
+    ctx.scale(1, 0.3);
+    ctx.beginPath(); ctx.arc(0,0,size*0.8,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fill();
+    ctx.restore();
+
+    if (stage === 'egg'){
+      // A speckled egg, rocking gently in place - no legs/wings yet.
+      ctx.fillStyle = '#f0e6d2';
+      ctx.beginPath(); ctx.ellipse(0, size*0.15, size*0.55, size*0.75, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = base;
+      [[-0.18,-0.3],[0.2,-0.05],[-0.05,0.35],[0.22,0.4]].forEach(([dx,dy])=>{
+        ctx.beginPath(); ctx.ellipse(size*dx, size*dy, size*0.08, size*0.06, 0.4, 0, Math.PI*2); ctx.fill();
+      });
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = size*0.03;
+      ctx.beginPath(); ctx.moveTo(-size*0.2, -size*0.5); ctx.quadraticCurveTo(-size*0.05, -size*0.2, -size*0.15, size*0.1); ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    if (stage === 'adult'){
+      drawDragonAdult(ctx, size, base);
+      ctx.restore();
+      return;
+    }
+
+    const r = size * 0.85;
+
+    // tail
+    ctx.strokeStyle = base; ctx.lineWidth = r*0.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-r*0.5, r*0.35); ctx.quadraticCurveTo(-r*1.05, r*0.5, -r*1.15, r*0.05); ctx.stroke();
+
+    // wings (small nubs - not grown in yet)
+    ctx.fillStyle = base;
+    const wingSpread = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(-r*0.15,-r*0.1);
+    ctx.quadraticCurveTo(-r*0.65*wingSpread,-r*0.55*wingSpread,-r*0.95*wingSpread,-r*0.1*wingSpread);
+    ctx.quadraticCurveTo(-r*0.55*wingSpread,-r*0.05,-r*0.35,r*0.15);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(r*0.15,-r*0.12);
+    ctx.quadraticCurveTo(r*0.65*wingSpread,-r*0.6*wingSpread,r*0.95*wingSpread,-r*0.12*wingSpread);
+    ctx.quadraticCurveTo(r*0.55*wingSpread,-r*0.08,r*0.35,r*0.12);
+    ctx.closePath(); ctx.fill();
+
+    // legs
+    ctx.beginPath(); ctx.ellipse(-r*0.28, r*0.68, r*0.15, r*0.24, 0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r*0.22, r*0.68, r*0.15, r*0.24, 0,0,Math.PI*2); ctx.fill();
+
+    // body
+    ctx.beginPath(); ctx.ellipse(0, r*0.28, r*0.62, r*0.46, 0, 0, Math.PI*2); ctx.fill();
+
+    // head
+    ctx.beginPath(); ctx.arc(r*0.42, -r*0.15, r*0.4, 0, Math.PI*2); ctx.fill();
+
+    // horns (small nubs - baby dragons haven't grown theirs in yet)
+    ctx.beginPath(); ctx.moveTo(r*0.4,-r*0.44); ctx.lineTo(r*0.35,-r*0.58); ctx.lineTo(r*0.48,-r*0.46); ctx.closePath(); ctx.fill();
+
+    // belly shading + snout
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.ellipse(0, r*0.4, r*0.34, r*0.24, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = base;
+    ctx.beginPath(); ctx.ellipse(r*0.62,-r*0.08, r*0.16, r*0.12, -0.2, 0, Math.PI*2); ctx.fill();
+
+    // eye
+    ctx.fillStyle = '#ffd35c';
+    ctx.beginPath(); ctx.arc(r*0.5,-r*0.2,r*0.06,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath(); ctx.arc(r*0.51,-r*0.2,r*0.025,0,Math.PI*2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Darkens/lightens a '#rrggbb' color by a multiplicative factor - used to
+  // shade the adult dragon's wing membranes and dorsal spikes/horns a shade
+  // or two darker than its base body color.
+  function _dragonShade(hex, factor){
+    hex = hex.replace('#', '');
+    const r = Math.max(0, Math.min(255, Math.round(parseInt(hex.substring(0,2), 16) * factor)));
+    const g = Math.max(0, Math.min(255, Math.round(parseInt(hex.substring(2,4), 16) * factor)));
+    const b = Math.max(0, Math.min(255, Math.round(parseInt(hex.substring(4,6), 16) * factor)));
+    const h = n => n.toString(16).padStart(2, '0');
+    return '#' + h(r) + h(g) + h(b);
+  }
+
+  // Adult dragon silhouette - friendly blue-and-white design: rounded
+  // white-membrane wings, stubby rounded horns with white tips, soft
+  // rounded dorsal bumps, a leaf-tipped tail, a white belly/snout patch,
+  // a gentle smile, and a big round friendly eye. Draws centered on the
+  // current transform (caller has already translated/scaled/flipped into
+  // place).
+  function drawDragonAdult(ctx, size, base){
+    const r = size * 1.15;
+    const white = '#ffffff';
+    const dark = _dragonShade(base, 0.78);
+    const darker = _dragonShade(base, 0.6);
+
+    // tail: long sinuous curve ending in a rounded leaf-shaped tip
+    ctx.strokeStyle = base; ctx.lineWidth = r*0.16; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.45, r*0.4);
+    ctx.quadraticCurveTo(-r*1.15, r*0.55, -r*1.35, r*0.15);
+    ctx.quadraticCurveTo(-r*1.5, -r*0.1, -r*1.3, -r*0.25);
+    ctx.stroke();
+    ctx.fillStyle = white;
+    ctx.beginPath(); ctx.ellipse(-r*1.42, -r*0.28, r*0.14, r*0.09, 0.6, 0, Math.PI*2); ctx.fill();
+
+    // wings: rounded (not pointy) membrane fingers, white membrane w/ blue ribs
+    [-1, 1].forEach(sign=>{
+      ctx.save();
+      ctx.scale(sign, 1);
+      ctx.fillStyle = white;
+      ctx.beginPath();
+      ctx.moveTo(-r*0.1, -r*0.15);
+      ctx.quadraticCurveTo(-r*0.5, -r*0.65, -r*0.68, -r*0.5);
+      ctx.quadraticCurveTo(-r*0.85, -r*0.62, -r*0.98, -r*0.42);
+      ctx.quadraticCurveTo(-r*1.1, -r*0.5, -r*1.18, -r*0.3);
+      ctx.quadraticCurveTo(-r*1.0, -r*0.15, -r*0.98, -r*0.05);
+      ctx.quadraticCurveTo(-r*0.6, r*0.0, -r*0.28, r*0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = dark; ctx.lineWidth = r*0.02;
+      ctx.beginPath(); ctx.moveTo(-r*0.15,-r*0.18); ctx.lineTo(-r*0.65,-r*0.45); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r*0.15,-r*0.18); ctx.lineTo(-r*0.95,-r*0.32); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r*0.15,-r*0.18); ctx.lineTo(-r*0.85,0.0); ctx.stroke();
+      ctx.restore();
+    });
+
+    // hind legs, rounded white toes (no sharp claws)
+    [-r*0.3, r*0.18].forEach(x=>{
+      ctx.fillStyle = base;
+      ctx.beginPath(); ctx.ellipse(x, r*0.7, r*0.13, r*0.26, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = white;
+      [-0.07, 0, 0.07].forEach(dx=>{
+        ctx.beginPath(); ctx.ellipse(x + r*dx, r*0.94, r*0.035, r*0.045, 0, 0, Math.PI*2); ctx.fill();
+      });
+    });
+
+    // body: leaner, elongated ellipse tilted toward the head
+    ctx.fillStyle = base;
+    ctx.save();
+    ctx.translate(0, r*0.22);
+    ctx.rotate(-0.12);
+    ctx.beginPath(); ctx.ellipse(0, 0, r*0.58, r*0.36, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // dorsal bumps along back/neck - rounded, not spiky
+    ctx.fillStyle = dark;
+    [[-r*0.35, r*0.02, 0.09], [-r*0.1, -r*0.12, 0.1], [r*0.12, -r*0.28, 0.09], [r*0.32, -r*0.42, 0.07]].forEach(([sx, sy, sz])=>{
+      ctx.beginPath(); ctx.ellipse(sx, sy, r*sz, r*sz*0.8, 0, 0, Math.PI*2); ctx.fill();
+    });
+
+    // long curved neck into head
+    ctx.fillStyle = base;
+    ctx.beginPath();
+    ctx.moveTo(r*0.18, r*0.1);
+    ctx.quadraticCurveTo(r*0.3, -r*0.2, r*0.5, -r*0.32);
+    ctx.quadraticCurveTo(r*0.62, -r*0.1, r*0.5, r*0.08);
+    ctx.quadraticCurveTo(r*0.32, r*0.2, r*0.18, r*0.1);
+    ctx.closePath();
+    ctx.fill();
+
+    // head - rounder, with a white snout patch
+    ctx.beginPath();
+    ctx.ellipse(r*0.56, -r*0.32, r*0.3, r*0.25, -0.1, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.ellipse(r*0.82, -r*0.28, r*0.14, r*0.11, -0.1, 0, Math.PI*2);
+    ctx.fill();
+
+    // smile
+    ctx.strokeStyle = darker; ctx.lineWidth = r*0.02; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r*0.72, -r*0.22);
+    ctx.quadraticCurveTo(r*0.82, -r*0.16, r*0.9, -r*0.22);
+    ctx.stroke();
+
+    // rounded, stubby friendly horns with white tips
+    ctx.fillStyle = base;
+    ctx.beginPath();
+    ctx.moveTo(r*0.42, -r*0.5);
+    ctx.quadraticCurveTo(r*0.36, -r*0.66, r*0.28, -r*0.68);
+    ctx.quadraticCurveTo(r*0.4, -r*0.58, r*0.36, -r*0.46);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(r*0.6, -r*0.46);
+    ctx.quadraticCurveTo(r*0.62, -r*0.64, r*0.56, -r*0.72);
+    ctx.quadraticCurveTo(r*0.72, -r*0.58, r*0.68, -r*0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = white;
+    ctx.beginPath(); ctx.ellipse(r*0.29, -r*0.67, r*0.035, r*0.035, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r*0.57, -r*0.71, r*0.035, r*0.035, 0, 0, Math.PI*2); ctx.fill();
+
+    // belly
+    ctx.fillStyle = white;
+    ctx.save();
+    ctx.translate(0, r*0.32);
+    ctx.rotate(-0.12);
+    ctx.beginPath(); ctx.ellipse(0, 0, r*0.32, r*0.18, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // big friendly eye: white sclera, blue iris, black pupil, highlight
+    ctx.fillStyle = white;
+    ctx.beginPath(); ctx.arc(r*0.62, -r*0.36, r*0.1, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = _dragonShade(base, 0.85);
+    ctx.beginPath(); ctx.arc(r*0.64, -r*0.35, r*0.065, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath(); ctx.arc(r*0.655, -r*0.345, r*0.03, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = white;
+    ctx.beginPath(); ctx.arc(r*0.67, -r*0.365, r*0.015, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Dispatches to the right renderer based on def.species - lets all the
+  // wander/battle/collection code treat cats, dogs and dragons interchangeably.
+  function drawPet(ctx, cx, cy, size, def, opts){
+    if (def.species === 'dog') drawDog(ctx, cx, cy, size, def, opts);
+    else if (def.species === 'dragon') drawDragon(ctx, cx, cy, size, def, opts);
+    else drawCat(ctx, cx, cy, size, def, opts);
+  }
+
+  /* ------------------------------------------------------------------
+   * ENEMY ROSTER
+   * To add a new enemy later: add an entry here, then add a matching
+   * silhouette branch (or reuse the 'dog' branch) inside drawEnemy().
+   * ---------------------------------------------------------------- */
+  const ENEMY_TYPES = {
+    rat:    { id:'rat',    name:'Rat',            hp:2,  dmg:1, color:'#8a7565', size:14 },
+    crow:   { id:'crow',   name:'Crow',           hp:2,  dmg:1, color:'#2b2b2b', size:15 },
+    dog:    { id:'dog',    name:'Dog',            hp:4,  dmg:2, color:'#c99a5b', size:20 },
+    bigdog: { id:'bigdog', name:'Big Dog (Boss)', hp:9,  dmg:3, color:'#6b4a32', size:29, boss:true },
+    wolf:   { id:'wolf',   name:'Feral Wolf',     hp:12, dmg:4, color:'#5a5f66', size:24 },
+    alpha:  { id:'alpha',  name:'Alpha Wolf (Boss)', hp:20, dmg:5, color:'#2e2f33', size:34, boss:true },
+    // Late-game elite tiers - stronger than anything above, used to keep
+    // levels in the high 20s-40s escalating once wolves/alphas alone stop
+    // feeling threatening.
+    direwolf: { id:'direwolf', name:'Direwolf',        hp:28, dmg:6, color:'#3d3d40', size:27 },
+    warlord:  { id:'warlord',  name:'Wolf Warlord (Boss)', hp:42, dmg:8, color:'#4a1f1f', size:37, boss:true },
+    // Catchable enemies - flagged `catchable` so the in-battle Catch
+    // action offers them the instant they appear, no separate unlock
+    // needed. `catchBreed` names which CATS entry joins the collection
+    // on a successful catch.
+    wildcat: { id:'wildcat', name:'Wild Cat',  hp:6,  dmg:2, color:'#c9a06a', size:16, catchable:true, catchBreed:'wildcat' },
+    lynx:    { id:'lynx',    name:'Snow Lynx', hp:10, dmg:3, color:'#e8e4da', size:18, catchable:true, catchBreed:'snowlynx' },
+    // The ultimate catchable boss - superhard, guards the very last
+    // levels. Caught dragons join the collection as an egg and evolve
+    // through baby/adult forms as they level up (see drawDragon()).
+    dragon:  { id:'dragon',  name:'Ancient Dragon (Boss)', hp:75, dmg:10, color:'#2e7d46', size:42, boss:true, catchable:true, isDragon:true }
+  };
+
+  function drawEnemy(ctx, cx, cy, type, opts){
+    opts = opts || {};
+    const bob = opts.bob || 0;
+    const scale = opts.scale === undefined ? 1 : opts.scale;
+    const flip = opts.flip ? -1 : 1;
+    const fillColor = opts.hitFlash ? '#ffffff' : type.color;
+    const s = type.size;
+
+    ctx.save();
+    ctx.translate(cx, cy + bob);
+    ctx.scale(scale * flip, scale);
+
+    // shadow
+    ctx.save();
+    ctx.translate(0, s*0.9);
+    ctx.scale(1, 0.3);
+    ctx.beginPath(); ctx.arc(0,0,s*0.8,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fill();
+    ctx.restore();
+
+    if (type.id === 'rat'){
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(0, s*0.1, s*0.75, s*0.5, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.65, -s*0.05, s*0.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.5,-s*0.35, s*0.16,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.85,-s*0.3, s*0.14,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = fillColor; ctx.lineWidth = s*0.12; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-s*0.7, s*0.05); ctx.quadraticCurveTo(-s*1.3, s*0.3, -s*1.5, -s*0.2); ctx.stroke();
+      ctx.fillStyle = '#1c1c1c';
+      ctx.beginPath(); ctx.arc(s*0.78,-s*0.1,s*0.06,0,Math.PI*2); ctx.fill();
+    } else if (type.id === 'crow'){
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(0,0,s*0.5,s*0.65,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.4,-s*0.1); ctx.quadraticCurveTo(-s*1.1,-s*0.4,-s*0.9,s*0.4); ctx.quadraticCurveTo(-s*0.6,s*0.15,-s*0.4,-s*0.1);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(s*0.4,-s*0.1); ctx.quadraticCurveTo(s*1.1,-s*0.4,s*0.9,s*0.4); ctx.quadraticCurveTo(s*0.6,s*0.15,s*0.4,-s*0.1);
+      ctx.fill();
+      ctx.beginPath(); ctx.arc(0,-s*0.55,s*0.33,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e8b23c';
+      ctx.beginPath(); ctx.moveTo(s*0.22,-s*0.6); ctx.lineTo(s*0.55,-s*0.5); ctx.lineTo(s*0.2,-s*0.42); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(s*0.1,-s*0.6,s*0.06,0,Math.PI*2); ctx.fill();
+    } else if (type.id === 'wildcat' || type.id === 'lynx'){
+      // Small feline silhouette, distinct from every canine-shaped enemy -
+      // reused by the two catchable wildcat/lynx enemies.
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(0, s*0.25, s*0.6, s*0.45, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.55, -s*0.1, s*0.42, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s*0.3,-s*0.4); ctx.lineTo(s*0.42,-s*0.75); ctx.lineTo(s*0.55,-s*0.42); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s*0.65,-s*0.42); ctx.lineTo(s*0.78,-s*0.78); ctx.lineTo(s*0.9,-s*0.42); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = fillColor; ctx.lineWidth = s*0.16; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-s*0.55, s*0.35); ctx.quadraticCurveTo(-s*1.05, s*0.1, -s*0.9,-s*0.3); ctx.stroke();
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(-s*0.25, s*0.62, s*0.13,s*0.22,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.2, s*0.62, s*0.13,s*0.22,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2b2320';
+      ctx.beginPath(); ctx.arc(s*0.68,-s*0.12,s*0.06,0,Math.PI*2); ctx.fill();
+      if (type.id === 'lynx'){
+        ctx.strokeStyle = '#f0efe9'; ctx.lineWidth = s*0.06;
+        ctx.beginPath(); ctx.moveTo(s*0.42,-s*0.75); ctx.lineTo(s*0.46,-s*0.95); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s*0.78,-s*0.78); ctx.lineTo(s*0.82,-s*0.98); ctx.stroke();
+      }
+    } else if (type.id === 'dragon'){
+      // Large winged boss silhouette - unmistakably distinct from every
+      // other enemy in the game.
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(0, s*0.3, s*0.7, s*0.5, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-s*0.2,-s*0.05); ctx.quadraticCurveTo(-s*0.9,-s*0.6,-s*1.3,-s*0.1); ctx.quadraticCurveTo(-s*0.8,-s*0.1,-s*0.5,s*0.2); ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(s*0.2,-s*0.15); ctx.quadraticCurveTo(s*0.9,-s*0.7,s*1.3,-s*0.2); ctx.quadraticCurveTo(s*0.8,-s*0.2,s*0.5,s*0.1); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.65,-s*0.35, s*0.3, s*0.24, -0.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s*0.6,-s*0.55); ctx.lineTo(s*0.5,-s*0.85); ctx.lineTo(s*0.72,-s*0.62); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s*0.85,-s*0.5); ctx.lineTo(s*0.95,-s*0.8); ctx.lineTo(s*0.98,-s*0.48); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = fillColor; ctx.lineWidth = s*0.18; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-s*0.65,s*0.4); ctx.quadraticCurveTo(-s*1.2,s*0.55,-s*1.35,s*0.15); ctx.stroke();
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(-s*0.25, s*0.72, s*0.16,s*0.26,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.25, s*0.72, s*0.16,s*0.26,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffd35c';
+      ctx.beginPath(); ctx.arc(s*0.78,-s*0.38,s*0.06,0,Math.PI*2); ctx.fill();
+      if (type.boss){
+        ctx.strokeStyle = '#c0392b';
+        ctx.lineWidth = s*0.12;
+        ctx.beginPath(); ctx.arc(0,s*0.3,s*0.68,0.1*Math.PI,1.5*Math.PI); ctx.stroke();
+      }
+    } else {
+      // dog, bigdog, wolf, alpha, direwolf & warlord all share a
+      // silhouette (scaled + tinted by type) - any type flagged `boss`
+      // gets the extra collar+badge.
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(0,s*0.25,s*0.68,s*0.5,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.55,-s*0.05,s*0.5,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.3,-s*0.35,s*0.18,s*0.32,-0.3,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.85,-s*0.3,s*0.18,s*0.32,0.3,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.95,0,s*0.22,s*0.16,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2b2320';
+      ctx.beginPath(); ctx.arc(s*1.1,0,s*0.06,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.62,-s*0.1,s*0.07,0,Math.PI*2); ctx.fill();
+      if (type.boss){
+        ctx.strokeStyle = type.id === 'alpha' ? '#8e44ad' : '#c0392b';
+        ctx.lineWidth = s*0.14;
+        ctx.beginPath(); ctx.arc(s*0.5,s*0.05,s*0.5,0.1*Math.PI,1.5*Math.PI); ctx.stroke();
+        ctx.fillStyle = '#ffd35c';
+        ctx.beginPath(); ctx.arc(s*0.15,s*0.35,s*0.1,0,Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle = fillColor;
+      ctx.beginPath(); ctx.ellipse(-s*0.3, s*0.7, s*0.16,s*0.28,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(s*0.25, s*0.7, s*0.16,s*0.28,0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = fillColor; ctx.lineWidth = s*0.16; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-s*0.6,s*0.15); ctx.quadraticCurveTo(-s*1.1,-s*0.1,-s*0.95,-s*0.5); ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * LEVELS
+   * To add another level later, push a new entry here with its own
+   * enemy mix - everything else (spawning, HUD, unlocking) is automatic.
+   * Each group in `enemies` is its own wave: waves arrive one at a time,
+   * in order, and the level is cleared once every wave is defeated.
+   * ---------------------------------------------------------------- */
+  const LEVELS = [
+    { id:1,  name:'Backyard Skirmish',      enemies:[{type:'rat', count:5}], unlocked:true, cleared:false },
+    { id:2,  name:'Alley Patrol',           enemies:[{type:'rat', count:3},{type:'crow', count:2}], unlocked:false, cleared:false },
+    { id:3,  name:'Junkyard Showdown',      enemies:[{type:'dog', count:2},{type:'bigdog', count:1}], unlocked:false, cleared:false },
+    { id:4,  name:'Rooftop Chase',          enemies:[{type:'crow', count:4},{type:'rat', count:3}], unlocked:false, cleared:false },
+    { id:5,  name:'Warehouse Ambush',       enemies:[{type:'rat', count:4},{type:'dog', count:2},{type:'crow', count:3}], unlocked:false, cleared:false },
+    { id:6,  name:'Midnight Prowl',         enemies:[{type:'dog', count:3},{type:'bigdog', count:1},{type:'crow', count:3}], unlocked:false, cleared:false },
+    { id:7,  name:'Scrapyard Siege',        enemies:[{type:'rat', count:5},{type:'dog', count:3},{type:'bigdog', count:1}], unlocked:false, cleared:false },
+    { id:8,  name:'Storm Drain Gauntlet',   enemies:[{type:'crow', count:5},{type:'rat', count:5},{type:'dog', count:2}], unlocked:false, cleared:false },
+    { id:9,  name:'Old Mill Showdown',      enemies:[{type:'dog', count:4},{type:'bigdog', count:2},{type:'crow', count:4}], unlocked:false, cleared:false },
+    { id:10, name:'Alley Boss Rush',        enemies:[{type:'rat', count:5},{type:'crow', count:4},{type:'dog', count:4},{type:'bigdog', count:3}], unlocked:false, cleared:false },
+    { id:11, name:'Sewer Maze',             enemies:[{type:'dog', count:3},{type:'bigdog', count:2},{type:'crow', count:4}], unlocked:false, cleared:false },
+    { id:12, name:"Wolf's Den Approach",    enemies:[{type:'wolf', count:3},{type:'dog', count:3},{type:'crow', count:3}], unlocked:false, cleared:false },
+    { id:13, name:'Frozen Junction',        enemies:[{type:'wolf', count:4},{type:'bigdog', count:2},{type:'rat', count:5}], unlocked:false, cleared:false },
+    { id:14, name:'Pack Hunting Grounds',   enemies:[{type:'wolf', count:5},{type:'dog', count:4},{type:'bigdog', count:2}], unlocked:false, cleared:false },
+    { id:15, name:"Alpha's Territory",      enemies:[{type:'wolf', count:4},{type:'alpha', count:1},{type:'dog', count:3}], unlocked:false, cleared:false },
+    { id:16, name:'Blizzard Ambush',        enemies:[{type:'wolf', count:5},{type:'bigdog', count:3},{type:'crow', count:5}], unlocked:false, cleared:false },
+    { id:17, name:'Twin Alphas',            enemies:[{type:'alpha', count:2},{type:'wolf', count:4},{type:'bigdog', count:2}], unlocked:false, cleared:false },
+    { id:18, name:'Feral Uprising',         enemies:[{type:'wolf', count:6},{type:'alpha', count:2},{type:'rat', count:5},{type:'crow', count:5}], unlocked:false, cleared:false },
+    { id:19, name:'The Last Stand',         enemies:[{type:'alpha', count:3},{type:'wolf', count:5},{type:'bigdog', count:3}], unlocked:false, cleared:false },
+    { id:20, name:"Alpha King's Throne",    enemies:[{type:'rat', count:5},{type:'crow', count:5},{type:'dog', count:5},{type:'wolf', count:5},{type:'alpha', count:4}], unlocked:false, cleared:false },
+    { id:21, name:'Overgrown Trail',        enemies:[{type:'wolf', count:6},{type:'dog', count:4}], unlocked:false, cleared:false },
+    { id:22, name:'Broken Bridge',          enemies:[{type:'bigdog', count:4},{type:'wolf', count:5}], unlocked:false, cleared:false },
+    { id:23, name:'Silver Mine Entrance',   enemies:[{type:'direwolf', count:1},{type:'wolf', count:6},{type:'dog', count:4}], unlocked:false, cleared:false },
+    { id:24, name:'Collapsed Tunnel',       enemies:[{type:'bigdog', count:4},{type:'direwolf', count:2},{type:'wolf', count:4}], unlocked:false, cleared:false },
+    { id:25, name:'Moonlit Ridge',          enemies:[{type:'alpha', count:3},{type:'wolf', count:6},{type:'direwolf', count:2}], unlocked:false, cleared:false },
+    // "Easier" enemies (rat/crow/dog) are fully retired starting here - the
+    // pack gets meaner as the levels climb.
+    { id:26, name:'Ice Cave Depths',        enemies:[{type:'wolf', count:7},{type:'direwolf', count:3},{type:'alpha', count:2}], unlocked:false, cleared:false },
+    { id:27, name:'Ravine Crossing',        enemies:[{type:'alpha', count:4},{type:'direwolf', count:3},{type:'bigdog', count:3}], unlocked:false, cleared:false },
+    { id:28, name:'Howling Summit',         enemies:[{type:'direwolf', count:5},{type:'wolf', count:7},{type:'alpha', count:3}], unlocked:false, cleared:false },
+    { id:29, name:'Frostpeak Outpost',      enemies:[{type:'alpha', count:4},{type:'direwolf', count:4},{type:'bigdog', count:4}], unlocked:false, cleared:false },
+    { id:30, name:'The Great Thaw',         enemies:[{type:'alpha', count:5},{type:'direwolf', count:5},{type:'wolf', count:8},{type:'bigdog', count:4}], unlocked:false, cleared:false },
+    // --- Late game begins here: specific enemies below start showing up
+    // as `catchable` (see ENEMY_TYPES) - Wild Cats and Snow Lynxes join
+    // the collection, and Dragons appear as the ultimate catch near the
+    // very end. Catching works the instant one of these appears, no
+    // separate unlock needed. ---
+    { id:31, name:'Canyon Ambush',          enemies:[{type:'direwolf', count:6},{type:'alpha', count:4},{type:'wildcat', count:1}], unlocked:false, cleared:false },
+    { id:32, name:'Sunken Ruins',           enemies:[{type:'warlord', count:1},{type:'wolf', count:6},{type:'direwolf', count:3}], unlocked:false, cleared:false },
+    { id:33, name:'Shattered Outpost',      enemies:[{type:'direwolf', count:6},{type:'alpha', count:5},{type:'wildcat', count:2}], unlocked:false, cleared:false },
+    { id:34, name:'Blood Moon Rising',      enemies:[{type:'warlord', count:1},{type:'direwolf', count:5},{type:'alpha', count:4}], unlocked:false, cleared:false },
+    { id:35, name:'Wraith Pack',            enemies:[{type:'direwolf', count:8},{type:'alpha', count:4},{type:'lynx', count:1}], unlocked:false, cleared:false },
+    { id:36, name:'The Hollow',             enemies:[{type:'warlord', count:2},{type:'direwolf', count:6},{type:'alpha', count:4}], unlocked:false, cleared:false },
+    { id:37, name:'Ember Fields',           enemies:[{type:'direwolf', count:7},{type:'warlord', count:1},{type:'wildcat', count:2}], unlocked:false, cleared:false },
+    { id:38, name:'Iron Fang Bastion',      enemies:[{type:'warlord', count:2},{type:'alpha', count:6},{type:'direwolf', count:5}], unlocked:false, cleared:false },
+    { id:39, name:'Storm Peak Siege',       enemies:[{type:'warlord', count:2},{type:'direwolf', count:8},{type:'lynx', count:1}], unlocked:false, cleared:false },
+    // Big Dogs retire here too - from now on it's wolves, direwolves,
+    // alphas, warlords, and the rare catchable roaming in.
+    { id:40, name:'Alpha Council',          enemies:[{type:'warlord', count:3},{type:'alpha', count:7},{type:'direwolf', count:6}], unlocked:false, cleared:false },
+    { id:41, name:'Deep Woods Gauntlet',    enemies:[{type:'warlord', count:2},{type:'direwolf', count:9},{type:'wildcat', count:2}], unlocked:false, cleared:false },
+    { id:42, name:'The Feral Expanse',      enemies:[{type:'warlord', count:3},{type:'alpha', count:7},{type:'direwolf', count:7}], unlocked:false, cleared:false },
+    { id:43, name:'Cursed Hollow',          enemies:[{type:'warlord', count:3},{type:'direwolf', count:9},{type:'lynx', count:2}], unlocked:false, cleared:false },
+    { id:44, name:'Thundering Pack',        enemies:[{type:'warlord', count:4},{type:'alpha', count:8},{type:'direwolf', count:7}], unlocked:false, cleared:false },
+    { id:45, name:'The Last Refuge',        enemies:[{type:'warlord', count:3},{type:'direwolf', count:10},{type:'wildcat', count:2},{type:'lynx', count:1}], unlocked:false, cleared:false },
+    { id:46, name:'Nightfall Reckoning',    enemies:[{type:'warlord', count:4},{type:'alpha', count:8},{type:'direwolf', count:8}], unlocked:false, cleared:false },
+    { id:47, name:'Twilight Warband',       enemies:[{type:'warlord', count:5},{type:'direwolf', count:10},{type:'lynx', count:2}], unlocked:false, cleared:false },
+    { id:48, name:'The Endless Horde',      enemies:[{type:'warlord', count:5},{type:'alpha', count:9},{type:'direwolf', count:10},{type:'wildcat', count:2}], unlocked:false, cleared:false },
+    { id:49, name:"Dragon's Lair Approach", enemies:[{type:'warlord', count:5},{type:'direwolf', count:10},{type:'dragon', count:1}], unlocked:false, cleared:false },
+    { id:50, name:'The Alpha Emperor',      enemies:[{type:'dragon', count:2},{type:'warlord', count:5},{type:'alpha', count:10},{type:'direwolf', count:10}], unlocked:false, cleared:false }
+  ];
+
+  const ATTACK_ANIM_MS = 260;
+  const ENEMY_TURN_DELAY_MS = 850;
+  const WAVE_BANNER_MS = 1500;
+  const CAT_BATTLE_HP = 3;
+
+  /* ------------------------------------------------------------------
+   * XP economy - defeating enemies and winning levels earns XP, spent
+   * in the hub Shop on one-off stat treats or unlocking new breeds
+   * outright. Pets no longer level up by spending XP - instead they
+   * naturally gain a level every time they're brought into battle and
+   * that stage is won (see winLevel()).
+   * ---------------------------------------------------------------- */
+  const XP_PER_KILL = 2;
+  const BREED_UNLOCK_COST = 30;
+  const TREAT_COST = 12;
+  // Catching mechanism - catchable enemies (see LEVELS + ENEMY_TYPES
+  // `catchable`) can be caught the moment they appear in battle, no
+  // separate level-clear unlock required.
+  const CATCH_XP_BONUS = 5;
+  function catchingUnlocked(){
+    return true;
+  }
+  // Treats add flat, permanent stat bonuses on top of a pet's level, but
+  // are capped so leveling through battle stays the main way to grow.
+  const MAX_HP_TREATS = 10;
+  const MAX_DMG_TREATS = 5;
+  // Pets level up for free (via winning battles) up to this cap. Beyond
+  // that, further levels must be bought directly with XP - a big late-game
+  // sink for players who want to keep pushing a favorite pet's stats.
+  const MAX_FREE_LEVEL = 65;
+  const LEVEL_UP_XP_COST = 20000;
+  let playerXP = 0;
+
+  function petMaxHp(c){ return CAT_BATTLE_HP + ((c.level||1)-1) + (c.bonusHp||0) + (c.def.eliteBonusHp||0); }
+  function petAtk(c){ return (c.level||1) + (c.bonusDmg||0) + (c.def.eliteBonusDmg||0); }
+
+  /* ------------------------------------------------------------------
+   * Level-up combat moves - higher-level pets unlock extra, riskier
+   * attack choices the player can pick from on their turn. Strike is
+   * always available; Power Strike and Fierce Pounce unlock at Lv.3
+   * and Lv.6 and hit harder at the cost of a chance to miss entirely.
+   * ---------------------------------------------------------------- */
+  const ATTACK_MOVES = {
+    strike: { key:'strike', label:'Strike',        minLevel:1, missChance:0,    dmgBonus:0, desc:'A reliable basic hit.' },
+    power:  { key:'power',  label:'Power Strike',   minLevel:3, missChance:0.25, dmgBonus:2, desc:'Hits harder, but can miss.' },
+    fierce: { key:'fierce', label:'Fierce Pounce',  minLevel:6, missChance:0.35, dmgBonus:4, desc:'Big damage, riskier.' }
+  };
+  function movesForPet(c){
+    const lvl = c.level || 1;
+    return Object.values(ATTACK_MOVES).filter(m => lvl >= m.minLevel);
+  }
+
+  /* ------------------------------------------------------------------
+   * Level-5+ pets occasionally tend to a hurt squadmate before acting -
+   * a small, automatic, chance-based heal. It's a free action and
+   * doesn't use up their turn, so they still get to attack right after.
+   * ---------------------------------------------------------------- */
+  const HEAL_UNLOCK_LEVEL = 5;
+  const HEAL_CHANCE = 0.3;
+  const HEAL_AMOUNT = 2;
+  function findHealTarget(healer){
+    let target = null, worstFrac = 1;
+    if (player.hp < player.maxHp){
+      const frac = player.hp / player.maxHp;
+      if (frac < worstFrac){ worstFrac = frac; target = player; }
+    }
+    activeCats.forEach(c=>{
+      if (c === healer || !c.aliveInBattle || !c.inFight) return;
+      if (c.battleHp < c.battleMaxHp){
+        const frac = c.battleHp / c.battleMaxHp;
+        if (frac < worstFrac){ worstFrac = frac; target = c; }
+      }
+    });
+    return target;
+  }
+
+  function updateXPBadge(){
+    const el = document.getElementById('xpBadge');
+    if (el) el.textContent = '✨ ' + playerXP + ' XP';
+  }
+
+  let gameState = 'hub'; // 'hub' | 'level'
+  let currentLevelIndex = -1;
+  let levelResult = null; // null | 'won' | 'lost'
+  const levelEnemies = []; // enemies alive in the current wave
+  let waveQueue = [];      // array of waves; each wave is an array of enemy type keys
+  let currentWaveIndex = 0;
+
+  // Battle mode picker state
+  let pendingLevelIndex = -1;
+  let pendingMode = null;
+  let pendingSelection = [];
+  let lastLevelOptions = { mode: '1v1', selectedIds: [] };
+
+  /* ------------------------------------------------------------------
+   * Turn-based battle state: units take turns in an organized queue
+   * rather than fighting freely. Every fighter (you + your battle cats)
+   * gets duel-paired with one enemy at a time; pairs fight it out over
+   * rounds until one side runs out of enemies (or waves).
+   * ---------------------------------------------------------------- */
+  const battle = {
+    phase: 'idle',       // 'idle' | 'awaiting-action' | 'enemy-acting' | 'wave-intro' | 'swap-prompt'
+    queue: [],
+    queueIndex: 0,
+    activeUnit: null,
+    actionAt: 0,
+    round: 1,
+    caughtThisLevel: false
+  };
+
+  // Flattens a level's enemy groups into one ordered list of type keys,
+  // e.g. [{type:'rat',count:3},{type:'crow',count:2}] -> ['rat','rat','rat','crow','crow']
+  function flattenLevelEnemies(lvl){
+    const flat = [];
+    lvl.enemies.forEach(g=>{ for(let i=0;i<g.count;i++) flat.push(g.type); });
+    return flat;
+  }
+
+  // Builds the wave queue for a battle. 1v1/2v2 modes fight through the
+  // level's FULL enemy roster, just chunked into small duel-sized waves
+  // (one enemy at a time for 1v1, two at a time for 2v2) so your chosen
+  // cat(s) face every enemy in the level, one duel after another.
+  function buildWaveQueue(lvl, options){
+    const chunkSize = options.mode === '2v2' ? 2 : 1;
+    const flat = flattenLevelEnemies(lvl);
+    const waves = [];
+    for (let i=0;i<flat.length;i+=chunkSize){
+      waves.push(flat.slice(i, i+chunkSize));
+    }
+    return waves.length ? waves : [flat];
+  }
+
+  /* ------------------------------------------------------------------
+   * Player (now a cat!)
+   * ---------------------------------------------------------------- */
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  // Persistent bottom action bar (mobile touch controls) - always visible
+  // while in the hub, buttons enable themselves whenever the player is
+  // standing close enough to a pet. See renderPetActionBar() below.
+  const petActionBar = document.getElementById('petActionBar');
+  const actionFeedBtn = document.getElementById('actionFeedBtn');
+  const actionSwapBtn = document.getElementById('actionSwapBtn');
+  const actionRenameBtn = document.getElementById('actionRenameBtn');
+  actionFeedBtn.addEventListener('click', ()=> feedNearestPet());
+  actionSwapBtn.addEventListener('click', ()=> swapNearestPetAccessory());
+  actionRenameBtn.addEventListener('click', ()=> renameNearestPet());
+  const W = canvas.width, H = canvas.height;
+
+  const player = {
+    x: W/2, y: H/2, size: 26, speed: 3.3, facing: 1, walkPhase: 0, moving:false,
+    hp: 5, maxHp: 5, attackEndTime: 0, pairedEnemy: null, onPadPrev: false,
+    // Tap-to-walk destination (mobile touch controls). Null when idle or
+    // when keyboard input is in control - keyboard always takes priority.
+    walkTarget: null
+  };
+  // Set while auto-walking toward a pet the player just tapped, so its
+  // quick-action menu (Feed/Swap/Rename/Release) can open automatically
+  // the moment the player arrives within feeding range. Cleared as soon as
+  // the menu opens, the walk is interrupted by the keyboard, or the pet
+  // becomes unavailable (released, or wandered into another room).
+  let pendingPetMenuTarget = null;
+
+  // The Shop is a physical stall sitting in the hub map itself - click it
+  // (or walk your cat right up to it) to open the shop overlay.
+  const shopStand = { x: W - 86, y: 86, radius: 34 };
+  function shopStandHit(px, py){
+    const cx = shopStand.x, cy = shopStand.y + shopStand.radius*0.4;
+    return Math.hypot(px - cx, py - cy) <= shopStand.radius + 16;
+  }
+
+  // The pet-room book stand is a physical object too, sitting in the
+  // corner of both hub areas - click it (or walk up to it) to open the
+  // pet room picker. Stays put across both rooms so it's always reachable.
+  const bookStand = { x: W - 60, y: H - 60, radius: 26 };
+  function bookStandHit(px, py){
+    const cx = bookStand.x, cy = bookStand.y + bookStand.radius*0.4;
+    return Math.hypot(px - cx, py - cy) <= bookStand.radius + 16;
+  }
+
+  // Cozy pet beds scattered around the hub - wandering pets occasionally
+  // toddle over to one and curl up for a nap. Each bed belongs to a room
+  // ('main' or 'room2') and only shows up while the player is in that room.
+  const petBeds = [
+    { x: 90, y: H - 66, r: 24, color: '#e8b6c9', room: 'main' },
+    { x: 250, y: H - 42, r: 22, color: '#b6d7e8', room: 'main' },
+    { x: 430, y: H - 70, r: 23, color: '#c9e8b6', room: 'main' },
+    { x: 330, y: 110, r: 21, color: '#f0d6a8', room: 'main' },
+    { x: 170, y: H - 70, r: 24, color: '#d9b6e8', room: 'room2' },
+    { x: 470, y: H - 60, r: 22, color: '#b6e8d0', room: 'room2' },
+    { x: 90, y: 150, r: 22, color: '#ffd6a8', room: 'room2' },
+    { x: 300, y: 90, r: 20, color: '#a8e0ff', room: 'room2' },
+    { x: 550, y: 180, r: 21, color: '#e0c9ff', room: 'room2' },
+    { x: 330, y: 330, r: 23, color: '#c8f0c0', room: 'room2' }
+  ];
+  const FEED_RANGE = 60;
+  const FEED_HAPPINESS_GAIN = 8;
+
+  // Food and water stands - present in both hub areas at the same spot.
+  // Wandering pets occasionally toddle over for a quick snack or sip,
+  // purely decorative like the pet beds.
+  const foodStand = { x: 200, y: 220, r: 22 };
+  const waterStand = { x: 330, y: 220, r: 22 };
+
+  /* ------------------------------------------------------------------
+   * Second hub room - a cozy extra room unlocked for XP. Reach it by
+   * walking onto the teleport pad in the main hub (no clicking needed);
+   * step on the same-looking pad in the second room to head back.
+   * ---------------------------------------------------------------- */
+  let hubArea = 'main'; // 'main' | 'room2' - only meaningful while gameState === 'hub'
+  let roomUnlocked = false;
+  const ROOM_UNLOCK_COST = 300;
+  const teleportPad = { x: 54, y: 78, radius: 28 };
+  function teleportPadHit(px, py){
+    const cx = teleportPad.x, cy = teleportPad.y + teleportPad.radius*0.4;
+    return Math.hypot(px - cx, py - cy) <= teleportPad.radius + 10;
+  }
+
+  const keys = new Set();
+  const codeInput = document.getElementById('codeInput');
+
+  window.addEventListener('keydown', (e)=>{
+    if (document.activeElement === codeInput) return;
+    if (document.activeElement && document.activeElement.id === 'renameInput') return;
+    const k = e.key.toLowerCase();
+    if (gameState === 'hub' && ['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)){
+      keys.add(k);
+      e.preventDefault();
+    } else if (e.key === ' '){
+      e.preventDefault();
+      confirmActiveAttack();
+    } else if (gameState === 'hub' && k === 'f'){
+      e.preventDefault();
+      feedNearestPet();
+    } else if (gameState === 'hub' && k === 'c'){
+      e.preventDefault();
+      swapNearestPetAccessory();
+    } else if (gameState === 'hub' && k === 'r'){
+      e.preventDefault();
+      renameNearestPet();
+    } else if (gameState === 'level' && k === 'l'){
+      e.preventDefault();
+      // Keyboard shortcut for the Catch action - only fires when catching
+      // is actually available right now (mirrors the `canCatch` check that
+      // decides whether the Catch button is shown in renderAttackChoices,
+      // based on whichever fighter - normally a pet - is currently up).
+      // attemptCatch() itself treats an ineligible call as "pass turn", so
+      // it must never be invoked here unless a catch is genuinely on offer.
+      const au = battle.activeUnit;
+      if (battle.phase === 'awaiting-action' && au &&
+          au.pairedEnemy && au.pairedEnemy.type.catchable && !battle.caughtThisLevel){
+        attemptCatch();
+      }
+    }
+  });
+  window.addEventListener('keyup', (e)=>{
+    keys.delete(e.key.toLowerCase());
+  });
+  // Touch/tap hit-test against every visible pet in the current hub room -
+  // mirrors the shopStandHit/bookStandHit pattern above, using each pet's
+  // on-screen radius (plus the same +16 touch-friendly padding) so small
+  // pets are still easy to tap accurately on a phone screen. When two pets
+  // overlap, the closest one to the tap point wins.
+  function petAtPoint(px, py){
+    let best = null, bestDist = Infinity;
+    activeCats.forEach(c=>{
+      if ((c.room||'main') !== hubArea) return;
+      const r = levelBaseRadius(c.level) + 16;
+      const d = Math.hypot(c.x - px, c.y - py);
+      if (d <= r && d < bestDist){ best = c; bestDist = d; }
+    });
+    return best;
+  }
+
+  // Clamp a tap point to the same walkable bounds updatePlayer() already
+  // enforces, so a tap near the very edge of the canvas never sets an
+  // unreachable target that would leave the player stuck nudging at a wall.
+  function setWalkTarget(px, py){
+    const padX = player.size*1.1;
+    const padTop = player.size*1.7;
+    const padBottom = player.size*1.5;
+    player.walkTarget = {
+      x: Math.max(padX, Math.min(W-padX, px)),
+      y: Math.max(padTop, Math.min(H-padBottom, py))
+    };
+    pendingPetMenuTarget = null;
+  }
+
+  // Tapping a pet either opens its quick-action menu right away (already
+  // close enough to interact) or walks the player over to it first and
+  // opens the menu automatically on arrival (see updatePlayer()).
+  function handlePetTap(inst){
+    const d = Math.hypot(inst.x - player.x, inst.y - player.y);
+    if (d < FEED_RANGE){
+      player.walkTarget = null;
+      pendingPetMenuTarget = null;
+      openPetStats(inst, { interactive: true });
+    } else {
+      player.walkTarget = { x: inst.x, y: inst.y };
+      pendingPetMenuTarget = inst;
+    }
+  }
+
+  // On mobile the canvas is CSS-scaled to fit the screen (see the
+  // responsive CSS below) while its internal drawing/logic resolution
+  // stays a fixed 640x440 - so a raw e.offsetX/offsetY (which is in the
+  // canvas's *rendered* CSS pixels) would be wrong everywhere except at
+  // 1:1 zoom. This converts a click/tap's page coordinates into the
+  // game's internal 640x440 coordinate space regardless of how big the
+  // canvas is actually being displayed.
+  function canvasPointFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
+  canvas.addEventListener('click', (e)=>{
+    const pt = canvasPointFromEvent(e);
+    if (gameState === 'hub' && hubArea === 'main' && shopStandHit(pt.x, pt.y)){
+      openShop();
+      return;
+    }
+    if (gameState === 'hub' && bookStandHit(pt.x, pt.y)){
+      openPetRoomPicker();
+      return;
+    }
+    if (gameState === 'hub'){
+      const tapped = petAtPoint(pt.x, pt.y);
+      if (tapped){
+        handlePetTap(tapped);
+      } else {
+        setWalkTarget(pt.x, pt.y);
+      }
+      return;
+    }
+    confirmActiveAttack();
+  });
+
+  function updatePlayer(){
+    if (gameState !== 'hub'){
+      player.moving = false;
+      return;
+    }
+    let dx=0, dy=0;
+    if (keys.has('arrowup')||keys.has('w')) dy -= 1;
+    if (keys.has('arrowdown')||keys.has('s')) dy += 1;
+    if (keys.has('arrowleft')||keys.has('a')) dx -= 1;
+    if (keys.has('arrowright')||keys.has('d')) dx += 1;
+
+    const keyboardActive = (dx!==0 || dy!==0);
+    if (keyboardActive){
+      // Keyboard input always wins over a pending tap-to-walk destination,
+      // so hybrid keyboard+touch devices (e.g. a tablet with a case
+      // keyboard) never fight themselves.
+      player.walkTarget = null;
+      pendingPetMenuTarget = null;
+    } else if (pendingPetMenuTarget){
+      // The tapped pet may be wandering (see updateCats/pickNewWanderTarget)
+      // - keep re-aiming at its live position each frame instead of a stale
+      // snapshot of where it was standing at tap time.
+      if (!activeCats.includes(pendingPetMenuTarget) || (pendingPetMenuTarget.room||'main') !== hubArea){
+        pendingPetMenuTarget = null;
+        player.walkTarget = null;
+      } else {
+        player.walkTarget = { x: pendingPetMenuTarget.x, y: pendingPetMenuTarget.y };
+      }
+    }
+
+    if (keyboardActive){
+      const len = Math.hypot(dx,dy) || 1;
+      player.x += (dx/len) * player.speed;
+      player.y += (dy/len) * player.speed;
+      if (dx !== 0) player.facing = dx > 0 ? 1 : -1;
+      player.walkPhase += 0.25;
+      player.moving = true;
+    } else if (player.walkTarget){
+      const tdx = player.walkTarget.x - player.x;
+      const tdy = player.walkTarget.y - player.y;
+      const tdist = Math.hypot(tdx, tdy);
+      if (tdist <= player.speed){
+        player.x = player.walkTarget.x;
+        player.y = player.walkTarget.y;
+        player.walkTarget = null;
+        player.moving = false;
+      } else {
+        player.x += (tdx/tdist) * player.speed;
+        player.y += (tdy/tdist) * player.speed;
+        if (tdx !== 0) player.facing = tdx > 0 ? 1 : -1;
+        player.walkPhase += 0.25;
+        player.moving = true;
+      }
+    } else {
+      player.moving = false;
+    }
+
+    // If we were auto-walking toward a tapped pet to open its quick-action
+    // menu, check whether we've now arrived within feeding range.
+    if (pendingPetMenuTarget && activeCats.includes(pendingPetMenuTarget)){
+      const d = Math.hypot(pendingPetMenuTarget.x - player.x, pendingPetMenuTarget.y - player.y);
+      if (d < FEED_RANGE){
+        const target = pendingPetMenuTarget;
+        pendingPetMenuTarget = null;
+        player.walkTarget = null;
+        openPetStats(target, { interactive: true });
+      }
+    }
+
+    const padX = player.size*1.1;
+    const padTop = player.size*1.7;
+    const padBottom = player.size*1.5;
+    player.x = Math.max(padX, Math.min(W-padX, player.x));
+    player.y = Math.max(padTop, Math.min(H-padBottom, player.y));
+
+    // The shop stand is a solid object on the map - gently push the player
+    // around it instead of letting them walk through it. It only exists in
+    // the main hub area.
+    if (hubArea === 'main'){
+      const scx = shopStand.x, scy = shopStand.y + shopStand.radius*0.4;
+      const combinedR = shopStand.radius*0.85 + player.size*0.6;
+      const sdx = player.x - scx, sdy = player.y - scy;
+      const sdist = Math.hypot(sdx, sdy);
+      if (sdist < combinedR && sdist > 0.001){
+        const push = (combinedR - sdist);
+        player.x += (sdx/sdist) * push;
+        player.y += (sdy/sdist) * push;
+      }
+    }
+
+    // The book stand is a solid object too, and sits in both hub areas.
+    {
+      const bcx = bookStand.x, bcy = bookStand.y + bookStand.radius*0.4;
+      const combinedR = bookStand.radius*0.85 + player.size*0.6;
+      const bdx = player.x - bcx, bdy = player.y - bcy;
+      const bdist = Math.hypot(bdx, bdy);
+      if (bdist < combinedR && bdist > 0.001){
+        const push = (combinedR - bdist);
+        player.x += (bdx/bdist) * push;
+        player.y += (bdy/bdist) * push;
+      }
+    }
+
+    // The teleport pad is walk-triggered (not clicked): stepping onto it
+    // fires once per approach, tracked via onPadPrev so holding still on
+    // the pad doesn't re-fire every frame.
+    const onPad = teleportPadHit(player.x, player.y);
+    if (onPad && !player.onPadPrev) handlePadStep();
+    player.onPadPrev = onPad;
+  }
+
+  function drawPlayer(){
+    const now = performance.now();
+    const bob = (gameState==='hub' && player.moving) ? Math.sin(player.walkPhase)*3 : Math.sin(now/500)*1.2;
+    const attacking = now < player.attackEndTime;
+    const scale = attacking ? 1.16 : 1;
+    drawCat(ctx, player.x, player.y, player.size, HERO_CAT, { bob, scale, flip: player.facing<0, bandana:true });
+  }
+
+  function drawAttackSwipes(){
+    if (performance.now() >= player.attackEndTime) return;
+    ctx.save();
+    ctx.translate(player.x + player.facing*30, player.y - 4);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for(let i=-1;i<=1;i++){
+      ctx.beginPath();
+      ctx.arc(0, i*10, 16, -0.6, 0.6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * Teleport pad - walking onto it (not clicking) whisks the player
+   * between the main hub and the second room. Unlocking the second room
+   * costs XP, paid one time via a confirmation prompt.
+   * ---------------------------------------------------------------- */
+  function handlePadStep(){
+    if (hubArea === 'main'){
+      if (roomUnlocked){
+        teleportToArea('room2');
+      } else {
+        openRoomUnlockPrompt();
+      }
+    } else {
+      teleportToArea('main');
+    }
+  }
+
+  function teleportToArea(area){
+    hubArea = area;
+    // Drop the player away from the pad so it doesn't immediately re-fire.
+    player.x = W/2 + 40;
+    player.y = H/2 + 30;
+    player.onPadPrev = true;
+    spawnBurst(player.x, player.y, ['#9b8cff','#ffffff']);
+    showToast(area === 'room2' ? '\ud83c\udf00 Welcome to the second room!' : '\ud83c\udf00 Back in the main hub!', 'good');
+  }
+
+  const roomOverlay = document.getElementById('roomOverlay');
+  const roomOverlayCard = document.getElementById('roomOverlayCard');
+
+  function closeRoomOverlay(){
+    roomOverlay.classList.add('hidden');
+  }
+
+  function openRoomUnlockPrompt(){
+    roomOverlayCard.innerHTML = '';
+    const h2 = document.createElement('h2');
+    h2.textContent = '\ud83c\udf00 Mystery Room';
+    roomOverlayCard.appendChild(h2);
+    const p = document.createElement('p');
+    p.textContent = 'Pay ' + ROOM_UNLOCK_COST + ' XP to unlock a second room for your pets? You have ' + playerXP + ' XP.';
+    roomOverlayCard.appendChild(p);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+
+    const yesBtn = document.createElement('button');
+    yesBtn.type = 'button';
+    yesBtn.textContent = 'Unlock (' + ROOM_UNLOCK_COST + ' XP)';
+    yesBtn.disabled = playerXP < ROOM_UNLOCK_COST;
+    yesBtn.addEventListener('click', ()=>{
+      if (playerXP < ROOM_UNLOCK_COST) return;
+      playerXP -= ROOM_UNLOCK_COST;
+      roomUnlocked = true;
+      updateXPBadge();
+      closeRoomOverlay();
+      showToast('\u2728 Second room unlocked!', 'good');
+      teleportToArea('room2');
+      autosaveCurrentSlot();
+    });
+    actions.appendChild(yesBtn);
+
+    const noBtn = document.createElement('button');
+    noBtn.type = 'button';
+    noBtn.className = 'secondary';
+    noBtn.textContent = 'Not yet';
+    noBtn.addEventListener('click', closeRoomOverlay);
+    actions.appendChild(noBtn);
+
+    roomOverlayCard.appendChild(actions);
+    roomOverlay.classList.remove('hidden');
+  }
+
+  /* ------------------------------------------------------------------
+   * Summoned cat companions (wander in the hub, fight in levels)
+   * ---------------------------------------------------------------- */
+  const activeCats = [];
+
+  function spawnCat(catDef){
+    const x = Math.random()*(W-160)+80;
+    const y = Math.random()*(H-160)+80;
+    activeCats.push({
+      def: catDef,
+      x, y,
+      targetX: x, targetY: y,
+      wanderTimer: 0,
+      bobPhase: Math.random()*10,
+      spawnAt: performance.now(),
+      flip: Math.random() < 0.5,
+      pounceUntil: 0,
+      inFight: true,
+      pairedEnemy: null,
+      aliveInBattle: true,
+      battleHp: CAT_BATTLE_HP,
+      battleMaxHp: CAT_BATTLE_HP,
+      level: 1,
+      bonusHp: 0,
+      bonusDmg: 0,
+      happiness: 0,
+      sleeping: false,
+      headingToBed: null,
+      bedInUse: null,
+      sleepUntil: 0,
+      snacking: false,
+      headingToStand: null,
+      snackUntil: 0,
+      snackKind: null,
+      room: 'main',
+      accessory: 'bowtie',
+      customName: null
+    });
+    spawnBurst(x, y);
+  }
+
+  // Every pet has a def.name it was discovered with, but players can give
+  // it a custom nickname (see openRenamePet()) - this is the single place
+  // that decides which one to actually display.
+  function petDisplayName(c){
+    if (!c) return '';
+    if (c.customName) return c.customName;
+    return c.def ? c.def.name : c.name;
+  }
+
+  // Pets should always be alert once sent into a fight - if one happened
+  // to be napping at a bed or snacking at a stand right beforehand, snap
+  // it awake immediately instead of leaving it stuck showing closed eyes
+  // and a zzz icon for the whole battle.
+  function wakePetForBattle(c){
+    c.sleeping = false;
+    c.sleepUntil = 0;
+    c.headingToBed = null;
+    c.bedInUse = null;
+    c.snacking = false;
+    c.snackUntil = 0;
+    c.snackKind = null;
+    c.headingToStand = null;
+  }
+
+  function pickNewWanderTarget(c){
+    // Every so often, head to a pet bed for a nap instead of wandering.
+    // Only beds that aren't already claimed (another pet heading there or
+    // already napping on it) count, so at most one pet uses a bed at once.
+    const roomBeds = petBeds.filter(b => (b.room||'main') === (c.room||'main'));
+    const freeBeds = roomBeds.filter(b => !activeCats.some(o =>
+      o !== c && (o.headingToBed === b || o.bedInUse === b)
+    ));
+    if (gameState === 'hub' && freeBeds.length && Math.random() < 0.18){
+      const bed = freeBeds[Math.floor(Math.random()*freeBeds.length)];
+      c.headingToBed = bed;
+      c.headingToStand = null;
+      c.targetX = bed.x;
+      c.targetY = bed.y - 4;
+      c.wanderTimer = 600;
+      return;
+    }
+    // Otherwise, sometimes toddle over to the food or water stand for a
+    // quick snack/sip - purely decorative, same pattern as the beds.
+    if (gameState === 'hub' && Math.random() < 0.18){
+      const stand = Math.random() < 0.5 ? foodStand : waterStand;
+      c.headingToBed = null;
+      c.headingToStand = stand;
+      c.targetX = stand.x;
+      c.targetY = stand.y - 4;
+      c.wanderTimer = 600;
+      return;
+    }
+    c.headingToBed = null;
+    c.headingToStand = null;
+    const anchorX = Math.random() < 0.6 ? player.x : c.x;
+    const anchorY = Math.random() < 0.6 ? player.y : c.y;
+    c.targetX = Math.max(50, Math.min(W-50, anchorX + (Math.random()*220-110)));
+    c.targetY = Math.max(50, Math.min(H-50, anchorY + (Math.random()*180-90)));
+    c.wanderTimer = 90 + Math.random()*90;
+  }
+
+  function updateCats(){
+    const now = performance.now();
+    activeCats.forEach(c=>{
+      if (gameState === 'level'){
+        if (c.inFight && c.aliveInBattle) c.bobPhase += 0.08;
+        return;
+      }
+      if ((c.room||'main') !== hubArea) return;
+      if (c.sleeping){
+        c.bobPhase += 0.02;
+        if (now >= c.sleepUntil){
+          c.sleeping = false;
+          c.bedInUse = null;
+          pickNewWanderTarget(c);
+        }
+        return;
+      }
+      if (c.snacking){
+        c.bobPhase += 0.05;
+        if (now >= c.snackUntil){
+          c.snacking = false;
+          c.snackKind = null;
+          pickNewWanderTarget(c);
+        }
+        return;
+      }
+      c.bobPhase += 0.08;
+      c.wanderTimer--;
+      if (c.wanderTimer <= 0) pickNewWanderTarget(c);
+      const dx = c.targetX - c.x, dy = c.targetY - c.y;
+      const dist = Math.hypot(dx,dy);
+      if (dist > 2){
+        c.x += (dx/dist) * 1.3;
+        c.y += (dy/dist) * 1.3;
+        c.flip = dx < 0;
+      } else if (c.headingToBed){
+        c.sleeping = true;
+        c.bedInUse = c.headingToBed;
+        c.sleepUntil = now + 3500 + Math.random()*3000;
+        c.headingToBed = null;
+      } else if (c.headingToStand){
+        c.snacking = true;
+        c.snackKind = c.headingToStand === foodStand ? 'food' : 'water';
+        c.snackUntil = now + 1800 + Math.random()*1500;
+        c.headingToStand = null;
+      }
+    });
+  }
+
+  // Level-up visuals: pets gradually grow and gain a pulsing aura + a
+  // worn neck accessory as they level up. Levels 3-9 get a neck bowtie
+  // (white aura for 3-5, gold aura for 6-9); once a pet reaches level 5
+  // it can swap that bowtie for a flower necklace instead by pressing C
+  // next to it. Level 10 gets a rotating rainbow aura and keeps the
+  // original star badge.
+  function levelBaseRadius(level){
+    const lvl = level || 1;
+    return 26 * (1 + Math.min(0.3, (lvl-1) * 0.03));
+  }
+
+  function drawLevelAura(ctx, x, y, r, level){
+    const lvl = level || 1;
+    if (lvl < 3) return;
+    const now = performance.now();
+    const pulse = 3 + Math.sin(now/200) * 2;
+    let color;
+    if (lvl >= 10){
+      color = 'hsl(' + Math.floor((now/8) % 360) + ', 90%, 65%)';
+    } else if (lvl >= 6){
+      color = '#ffd35c';
+    } else {
+      color = '#ffffff';
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + pulse, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // A small neck bowtie - the default level-3+ accessory.
+  function drawBowtie(ctx, x, y, r){
+    const ny = y + r*0.08;
+    const w = r*0.24, h = r*0.17;
+    ctx.save();
+    ctx.fillStyle = '#e0483f';
+    ctx.beginPath();
+    ctx.moveTo(x, ny); ctx.lineTo(x - w, ny - h); ctx.lineTo(x - w, ny + h); ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, ny); ctx.lineTo(x + w, ny - h); ctx.lineTo(x + w, ny + h); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#a8302a';
+    ctx.beginPath();
+    ctx.arc(x, ny, r*0.08, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // A little strung flower necklace - the level-5+ alternative to the bowtie.
+  function drawFlowerNecklace(ctx, x, y, r){
+    const ny = y + r*0.1;
+    const colors = ['#ff8fab','#ffd35c','#c084fc','#7fd8a0','#ff8fab'];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x - r*0.36, ny - r*0.1);
+    ctx.quadraticCurveTo(x, ny + r*0.22, x + r*0.36, ny - r*0.1);
+    ctx.stroke();
+    for (let i=0;i<5;i++){
+      const t = i/4;
+      const fx = x - r*0.34 + t*r*0.68;
+      const fy = ny - r*0.08 + Math.sin(t*Math.PI) * r*0.16;
+      ctx.fillStyle = colors[i];
+      for (let p=0;p<5;p++){
+        const pang = p * (Math.PI*2/5);
+        ctx.beginPath();
+        ctx.ellipse(fx + Math.cos(pang)*r*0.045, fy + Math.sin(pang)*r*0.045, r*0.04, r*0.026, pang, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#fff6a8';
+      ctx.beginPath();
+      ctx.arc(fx, fy, r*0.022, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawLevelBadge(ctx, x, y, r, level, accessory){
+    const lvl = level || 1;
+    if (lvl < 3) return;
+    if (lvl >= 10){
+      ctx.save();
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('\u2b50', x + r*0.65, y - r*0.95);
+      ctx.restore();
+      return;
+    }
+    if (lvl >= 5 && accessory === 'flower') drawFlowerNecklace(ctx, x, y, r);
+    else drawBowtie(ctx, x, y, r);
+  }
+
+  function drawCats(){
+    const now = performance.now();
+    activeCats
+      .filter(c => gameState === 'level' ? (c.inFight && c.aliveInBattle) : (c.room||'main') === hubArea)
+      .slice()
+      .sort((a,b)=>a.y-b.y)
+      .forEach(c=>{
+        const age = now - c.spawnAt;
+        let scale = age < 400 ? Math.min(1, age/400) : 1;
+        if (c.pounceUntil && now < c.pounceUntil) scale *= 1.22;
+        const bob = Math.sin(c.bobPhase) * (c.sleeping ? 1.4 : (c.snacking ? 1.8 : 3));
+        const baseR = levelBaseRadius(c.level);
+        drawLevelAura(ctx, c.x, c.y + bob, baseR * scale, c.level);
+        drawPet(ctx, c.x, c.y, baseR, c.def, { bob, scale, flip:c.flip, sleeping: c.sleeping, stage: dragonStageFor(c) });
+        drawLevelBadge(ctx, c.x, c.y + bob, baseR * scale, c.level, c.accessory);
+        if (c.sleeping){
+          ctx.fillStyle = 'rgba(60,50,40,0.75)';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('z z z', c.x + 16, c.y - 34 + Math.sin(now/300)*3);
+        } else if (c.snacking){
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(c.snackKind === 'water' ? '\ud83d\udca7' : '\ud83c\udf56', c.x + 16, c.y - 32 + Math.sin(now/300)*3);
+        }
+        if (gameState === 'level' && c.inFight && c.battleHp < c.battleMaxHp){
+          const barW = 34;
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
+          ctx.fillRect(c.x-barW/2, c.y-40, barW, 5);
+          ctx.fillStyle = '#5cb85c';
+          ctx.fillRect(c.x-barW/2, c.y-40, barW*Math.max(0,c.battleHp/c.battleMaxHp), 5);
+        }
+      });
+  }
+
+  /* ------------------------------------------------------------------
+   * Feeding - free, unlimited bonding moment. Press F near a pet to feed
+   * it; its happiness goes up and a little heart burst plays.
+   * ---------------------------------------------------------------- */
+  // Finds whichever pet in the current hub room is closest to the player
+  // and within FEED_RANGE, or null if none are close enough. Shared by the
+  // keyboard's F/C/R "nearest pet" shortcuts and the mobile bottom action
+  // bar, which needs the same lookup every frame just to decide whether its
+  // buttons should be enabled.
+  function findNearestPetInRange(){
+    let nearest = null, nearestDist = Infinity;
+    activeCats.forEach(c=>{
+      if ((c.room||'main') !== hubArea) return;
+      const d = Math.hypot(c.x - player.x, c.y - player.y);
+      if (d < FEED_RANGE && d < nearestDist){ nearest = c; nearestDist = d; }
+    });
+    return nearest;
+  }
+
+  // Instance-targeted version of the feed action, shared by the keyboard's
+  // "nearest pet in range" flow and the mobile tap-a-pet quick-action menu
+  // (which already knows exactly which pet was tapped, no search needed).
+  function feedPetInstance(inst){
+    inst.happiness = Math.min(100, (inst.happiness||0) + FEED_HAPPINESS_GAIN);
+    inst.pounceUntil = performance.now() + 260;
+    spawnHearts(inst.x, inst.y - 20);
+    showToast(petDisplayName(inst) + ' loves the snack! \ud83d\udc95', 'good');
+    renderCollection();
+    autosaveCurrentSlot();
+  }
+
+  function feedNearestPet(){
+    if (gameState !== 'hub') return;
+    const nearest = findNearestPetInRange();
+    if (!nearest){
+      showToast('Walk up close to a pet to feed it!', 'bad');
+      return;
+    }
+    feedPetInstance(nearest);
+  }
+
+  /* ------------------------------------------------------------------
+   * Accessory swap - every pet wears a bowtie once it reaches level 3.
+   * At level 5+ it can trade that bowtie for a flower necklace instead -
+   * walk up close and press C to toggle between the two.
+   * ---------------------------------------------------------------- */
+  const ACCESSORY_UNLOCK_LEVEL = 5;
+
+  // Instance-targeted version of the accessory-swap action - see
+  // feedPetInstance() above for why this exists alongside the "nearest"
+  // keyboard flow.
+  function swapPetAccessoryInstance(inst){
+    if ((inst.level||1) < ACCESSORY_UNLOCK_LEVEL){
+      showToast(petDisplayName(inst) + ' needs to reach level ' + ACCESSORY_UNLOCK_LEVEL + ' to unlock a flower necklace!', 'bad');
+      return;
+    }
+    inst.accessory = inst.accessory === 'flower' ? 'bowtie' : 'flower';
+    inst.pounceUntil = performance.now() + 260;
+    spawnBurst(inst.x, inst.y - 16, ['#ff8fab','#ffd35c','#c084fc']);
+    showToast(petDisplayName(inst) + ' is now wearing a ' + (inst.accessory === 'flower' ? 'flower necklace! \ud83d\udc90' : 'bowtie! \ud83c\udf80'), 'good');
+    autosaveCurrentSlot();
+  }
+
+  function swapNearestPetAccessory(){
+    if (gameState !== 'hub') return;
+    const nearest = findNearestPetInRange();
+    if (!nearest){
+      showToast('Walk up close to a pet to swap its accessory!', 'bad');
+      return;
+    }
+    swapPetAccessoryInstance(nearest);
+  }
+
+  /* ------------------------------------------------------------------
+   * Fighter helpers - "fighters" are the player plus any in-fight cats.
+   * Rather than wrapping them in separate objects, battle state (paired
+   * enemy, battle HP, etc.) lives directly on the player object / cat
+   * instances so there's a single source of truth.
+   * ---------------------------------------------------------------- */
+  // You cheer from the sideline in every battle - it's your chosen
+  // cat(s)' duel, so only they take the field.
+  function buildFighterList(){
+    const list = [];
+    activeCats.forEach(c=>{ if (c.inFight) list.push(c); });
+    return list;
+  }
+  function isFighter(u){ return u === player || (u && u.def && activeCats.indexOf(u) > -1); }
+  function fighterAlive(u){ return u === player ? player.hp > 0 : u.aliveInBattle; }
+  function fighterName(u){ return u === player ? 'You' : petDisplayName(u); }
+  function fighterX(u){ return u === player ? player.x : u.x; }
+  function fighterY(u){ return u === player ? player.y : u.y; }
+
+  // If your whole fighting roster is knocked out mid-battle, the level
+  // is lost even though your own HP never took a hit.
+  function checkFighterWipeout(){
+    const list = buildFighterList();
+    if (list.length && list.every(u => !fighterAlive(u))){
+      loseLevel();
+      return true;
+    }
+    return false;
+  }
+
+  /* ------------------------------------------------------------------
+   * Mid-battle swap-in - when a pet is knocked out you can pull in any
+   * other discovered pet that isn't already dueling (they come in fully
+   * healthy, since only pets actively in the fight take damage).
+   * ---------------------------------------------------------------- */
+  function benchCandidates(){
+    return activeCats.filter(c => c.aliveInBattle && !c.inFight);
+  }
+
+  let pendingSwapOut = null;
+  const swapOverlay = document.getElementById('swapOverlay');
+  const swapOverlayCard = document.getElementById('swapOverlayCard');
+
+  function openSwapPrompt(f){
+    pendingSwapOut = f;
+    battle.phase = 'swap-prompt';
+    battle.activeUnit = null;
+    renderSwapPrompt();
+    swapOverlay.classList.remove('hidden');
+  }
+
+  function closeSwapOverlay(){
+    swapOverlay.classList.add('hidden');
+  }
+
+  function renderSwapPrompt(){
+    swapOverlayCard.innerHTML = '';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = (pendingSwapOut ? petDisplayName(pendingSwapOut) : 'Your pet') + ' is down!';
+    swapOverlayCard.appendChild(h2);
+
+    const p = document.createElement('p');
+    p.textContent = 'Send in a fresh pet from your collection, or fight on without one.';
+    swapOverlayCard.appendChild(p);
+
+    const grid = document.createElement('div');
+    grid.className = 'pick-grid';
+    benchCandidates().forEach(c=>{
+      const card = document.createElement('div');
+      card.className = 'pick-card';
+
+      const mini = document.createElement('canvas');
+      mini.width = 56; mini.height = 56;
+      const mctx = mini.getContext('2d');
+      drawPet(mctx, 28, 34, 16, c.def, { stage: dragonStageFor(c) });
+      card.appendChild(mini);
+
+      const label = document.createElement('div');
+      label.className = 'pick-name';
+      label.textContent = petDisplayName(c) + ' (Lv.' + (c.level||1) + ')';
+      card.appendChild(label);
+
+      card.addEventListener('click', ()=>{
+        const outgoing = pendingSwapOut;
+        closeSwapOverlay();
+        pendingSwapOut = null;
+        if (outgoing) outgoing.inFight = false;
+        c.inFight = true;
+        c.pairedEnemy = null;
+        c.pounceUntil = 0;
+        wakePetForBattle(c);
+        showToast(petDisplayName(c) + ' jumps in!', 'good');
+        battle.round++;
+        startRound();
+      });
+      grid.appendChild(card);
+    });
+    swapOverlayCard.appendChild(grid);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.className = 'secondary';
+    skipBtn.textContent = 'Fight on without swapping';
+    skipBtn.addEventListener('click', ()=>{
+      closeSwapOverlay();
+      pendingSwapOut = null;
+      if (checkFighterWipeout()) return;
+      battle.queueIndex++;
+      advanceTurn();
+    });
+    actions.appendChild(skipBtn);
+    swapOverlayCard.appendChild(actions);
+  }
+
+  /* ------------------------------------------------------------------
+   * Level enemies
+   * ---------------------------------------------------------------- */
+  function spawnEnemyInstance(type, idx){
+    return {
+      type, x: W-130, y: H/2,
+      hp: type.hp, maxHp: type.hp,
+      flip: true,
+      bobPhase: Math.random()*10,
+      hitFlashUntil: 0,
+      spawnAt: performance.now(),
+      pairedFighter: null
+    };
+  }
+
+  function damageEnemy(e, amount){
+    e.hp -= amount;
+    e.hitFlashUntil = performance.now() + 150;
+    if (e.hp <= 0){
+      const idx = levelEnemies.indexOf(e);
+      if (idx > -1) levelEnemies.splice(idx,1);
+      if (e.pairedFighter) e.pairedFighter.pairedEnemy = null;
+      e.pairedFighter = null;
+      spawnBurst(e.x, e.y, ['#d8d3c8','#a99e8c']);
+      playerXP += XP_PER_KILL;
+      updateXPBadge();
+    }
+  }
+
+  function drawEnemies(){
+    const now = performance.now();
+    levelEnemies
+      .slice()
+      .sort((a,b)=>a.y-b.y)
+      .forEach(e=>{
+        const age = now - e.spawnAt;
+        const scale = age < 300 ? Math.max(0.2, age/300) : 1;
+        const bob = Math.sin(e.bobPhase)*2;
+        const hitFlash = now < e.hitFlashUntil;
+        drawEnemy(ctx, e.x, e.y, e.type, { bob, scale, flip:e.flip, hitFlash });
+        if (e.hp < e.maxHp){
+          const barW = e.type.size*1.4;
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
+          ctx.fillRect(e.x-barW/2, e.y-e.type.size-14, barW, 5);
+          ctx.fillStyle = '#5cb85c';
+          ctx.fillRect(e.x-barW/2, e.y-e.type.size-14, barW*(e.hp/e.maxHp), 5);
+        }
+      });
+  }
+
+  /* ------------------------------------------------------------------
+   * Battle formation - fighters line up on the left, enemies on the
+   * right, so it's clear who's dueling who.
+   * ---------------------------------------------------------------- */
+  function battlePositions(){
+    const fighters = buildFighterList().filter(u=>fighterAlive(u));
+    const fx = 130;
+    fighters.forEach((u,i)=>{
+      const spacing = Math.min(100, (H-100)/Math.max(1,fighters.length));
+      const y = H/2 - ((fighters.length-1)/2 - i)*spacing;
+      u.x = fx; u.y = y; u.targetX = u.x; u.targetY = u.y; u.flip = false;
+    });
+    // You're not fighting this round - stand off to the side and cheer instead.
+    player.x = 60; player.y = H - 55; player.facing = 1;
+    const ex = W-130;
+    levelEnemies.forEach((e,i)=>{
+      const spacing = Math.min(100, (H-100)/Math.max(1,levelEnemies.length));
+      const y = H/2 - ((levelEnemies.length-1)/2 - i)*spacing;
+      e.x = ex; e.y = y; e.flip = true;
+    });
+  }
+
+  function drawBattleConnections(){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4,5]);
+    buildFighterList().forEach(u=>{
+      if (fighterAlive(u) && u.pairedEnemy){
+        ctx.beginPath();
+        ctx.moveTo(fighterX(u), fighterY(u));
+        ctx.lineTo(u.pairedEnemy.x, u.pairedEnemy.y);
+        ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+
+  function drawActiveHighlight(){
+    if (!battle.activeUnit || (battle.phase !== 'awaiting-action' && battle.phase !== 'enemy-acting')) return;
+    const u = battle.activeUnit;
+    const isEnemy = !isFighter(u);
+    const x = isEnemy ? u.x : fighterX(u);
+    const y = isEnemy ? u.y : fighterY(u);
+    const size = isEnemy ? u.type.size : (u === player ? player.size : 26);
+    const now = performance.now();
+    const pulse = 2 + Math.sin(now/150)*2;
+    ctx.save();
+    ctx.strokeStyle = isEnemy ? '#e05555' : '#ffd35c';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(x, y+size*0.85, size*0.9+pulse, size*0.32+pulse*0.3, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * Turn-based combat flow
+   * squad rounds -> each round every paired fighter and enemy acts once
+   * (fighters first, then enemies), duel pairs persist until one side
+   * is defeated, and fresh pairings are made whenever someone frees up.
+   * ---------------------------------------------------------------- */
+  function assignPairings(){
+    const freeFighters = buildFighterList().filter(u => fighterAlive(u) && !u.pairedEnemy);
+    const freeEnemies = levelEnemies.filter(e => !e.pairedFighter);
+    while (freeFighters.length && freeEnemies.length){
+      const f = freeFighters.shift();
+      const e = freeEnemies.shift();
+      f.pairedEnemy = e;
+      e.pairedFighter = f;
+    }
+  }
+
+  function startWave(){
+    const keys = waveQueue[currentWaveIndex] || [];
+    levelEnemies.length = 0;
+    keys.forEach((key, idx)=>{
+      levelEnemies.push(spawnEnemyInstance(ENEMY_TYPES[key], idx));
+    });
+    buildFighterList().forEach(u=>{ u.pairedEnemy = null; });
+    battle.round = 1;
+    if (waveQueue.length > 1){
+      showToast('Wave ' + (currentWaveIndex+1) + ' of ' + waveQueue.length + ' incoming!', 'good');
+    }
+    startRound();
+  }
+
+  function startRound(){
+    assignPairings();
+    battlePositions();
+    battle.queue = [];
+    buildFighterList().forEach(u=>{ if (fighterAlive(u) && u.pairedEnemy) battle.queue.push(u); });
+    levelEnemies.forEach(e=>{ if (e.pairedFighter) battle.queue.push(e); });
+    battle.queueIndex = 0;
+    advanceTurn();
+  }
+
+  function advanceTurn(){
+    while (battle.queueIndex < battle.queue.length){
+      const u = battle.queue[battle.queueIndex];
+      const valid = isFighter(u)
+        ? (fighterAlive(u) && u.pairedEnemy)
+        : (levelEnemies.indexOf(u) > -1 && u.pairedFighter);
+      if (valid) break;
+      battle.queueIndex++;
+    }
+    if (battle.queueIndex >= battle.queue.length){
+      endRound();
+      return;
+    }
+    battle.activeUnit = battle.queue[battle.queueIndex];
+    if (isFighter(battle.activeUnit)){
+      const u = battle.activeUnit;
+      // Level 5+ pets occasionally tend to a hurt squadmate instead of
+      // attacking on their turn - roll for it here, before the player
+      // gets a chance to pick an attack move.
+      if (u !== player && (u.level||1) >= HEAL_UNLOCK_LEVEL && Math.random() < HEAL_CHANCE && findHealTarget(u)){
+        battle.phase = 'healing-action';
+        battle.actionAt = performance.now() + ENEMY_TURN_DELAY_MS;
+      } else {
+        battle.phase = 'awaiting-action';
+      }
+    } else {
+      battle.phase = 'enemy-acting';
+      battle.actionAt = performance.now() + ENEMY_TURN_DELAY_MS;
+    }
+  }
+
+  function resolveHealTurn(){
+    const healer = battle.activeUnit;
+    const target = findHealTarget(healer);
+    if (!target){
+      // Situation changed since we rolled for this (e.g. target healed by
+      // another source) - just fall back to a normal attack turn.
+      battle.phase = 'awaiting-action';
+      return;
+    }
+    if (target === player){
+      player.hp = Math.min(player.maxHp, player.hp + HEAL_AMOUNT);
+    } else {
+      target.battleHp = Math.min(target.battleMaxHp, target.battleHp + HEAL_AMOUNT);
+    }
+    spawnHearts(fighterX(target), fighterY(target) - 20);
+    showToast(petDisplayName(healer) + ' tends to ' + (target === player ? 'you' : petDisplayName(target)) + '! +' + HEAL_AMOUNT + ' HP', 'good');
+    // Healing is a free action - it doesn't use up the healer's turn, so
+    // they still get to attack normally right after.
+    battle.phase = 'awaiting-action';
+  }
+
+  function performPlayerAttack(){
+    if (gameState !== 'level' || levelResult) return;
+    if (battle.phase !== 'awaiting-action' || battle.activeUnit !== player) return;
+    const enemy = player.pairedEnemy;
+    if (!enemy){
+      battle.queueIndex++;
+      advanceTurn();
+      return;
+    }
+    player.attackEndTime = performance.now() + ATTACK_ANIM_MS;
+    const ax = fighterX(player), ay = fighterY(player);
+    damageEnemy(enemy, 1);
+    spawnBurst((ax+enemy.x)/2, (ay+enemy.y)/2, ['#ffffff','#ffe58a']);
+    battle.queueIndex++;
+    advanceTurn();
+  }
+
+  function catchSuccessChance(enemy){
+    const hpFrac = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
+    return Math.min(0.9, 0.35 + 0.5 * (1 - hpFrac));
+  }
+
+  function grantCaughtPet(type){
+    const breedId = type.isDragon ? 'dragon' : type.catchBreed;
+    const def = breedId ? PETS.find(p => p.id === breedId) : null;
+    if (!def){
+      playerXP += CATCH_XP_BONUS;
+      updateXPBadge();
+      return;
+    }
+    if (!discovered.has(breedId)){
+      discovered.add(breedId);
+      spawnCat(def);
+      renderCollection();
+      showToast('🎯 Caught! ' + def.name + ' joins you!', 'good');
+    } else {
+      playerXP += CATCH_XP_BONUS;
+      updateXPBadge();
+      showToast('🎯 Caught another ' + def.name + '! +' + CATCH_XP_BONUS + ' XP', 'good');
+    }
+  }
+
+  function attemptCatch(){
+    if (gameState !== 'level' || levelResult) return;
+    if (battle.phase !== 'awaiting-action' || !battle.activeUnit) return;
+    // Catching is something whichever of your fighters is currently up
+    // does on their own turn - only your pets actually take the field
+    // (see buildFighterList()), so `u` here is normally the active pet,
+    // though this also works fine for the player if that ever changes.
+    const u = battle.activeUnit;
+    const enemy = u.pairedEnemy;
+    if (!enemy || !enemy.type.catchable || !catchingUnlocked() || battle.caughtThisLevel){
+      battle.queueIndex++;
+      advanceTurn();
+      return;
+    }
+    if (u === player) player.attackEndTime = performance.now() + ATTACK_ANIM_MS;
+    else u.pounceUntil = performance.now() + ATTACK_ANIM_MS;
+    const ax = fighterX(u), ay = fighterY(u);
+    const chance = catchSuccessChance(enemy);
+    const success = Math.random() < chance;
+    spawnBurst((ax+enemy.x)/2, (ay+enemy.y)/2, success ? ['#9be89b','#ffffff'] : ['#d8d3c8','#a99e8c']);
+    if (success){
+      battle.caughtThisLevel = true;
+      const idx = levelEnemies.indexOf(enemy);
+      if (idx > -1) levelEnemies.splice(idx,1);
+      if (enemy.pairedFighter) enemy.pairedFighter.pairedEnemy = null;
+      enemy.pairedFighter = null;
+      playerXP += CATCH_XP_BONUS;
+      updateXPBadge();
+      grantCaughtPet(enemy.type);
+    } else {
+      showToast(enemy.type.name + ' broke free!', 'bad');
+    }
+    battle.queueIndex++;
+    advanceTurn();
+  }
+
+  function performPetAttack(u, moveKey){
+    if (gameState !== 'level' || levelResult) return;
+    if (battle.phase !== 'awaiting-action' || battle.activeUnit !== u) return;
+    const enemy = u.pairedEnemy;
+    if (!enemy){
+      battle.queueIndex++;
+      advanceTurn();
+      return;
+    }
+    const move = ATTACK_MOVES[moveKey] || ATTACK_MOVES.strike;
+    u.pounceUntil = performance.now() + ATTACK_ANIM_MS;
+    const ax = fighterX(u), ay = fighterY(u);
+    const missed = move.missChance > 0 && Math.random() < move.missChance;
+    if (missed){
+      showToast(petDisplayName(u) + "'s " + move.label + ' missed!', 'bad');
+    } else {
+      damageEnemy(enemy, petAtk(u) + move.dmgBonus);
+      spawnBurst((ax+enemy.x)/2, (ay+enemy.y)/2, ['#ffffff','#ffe58a']);
+    }
+    battle.queueIndex++;
+    advanceTurn();
+  }
+
+  // Keyboard/canvas shortcut (Space bar, clicking the battle canvas) - uses
+  // the player's own attack, or a pet's default Strike move.
+  function confirmActiveAttack(){
+    if (gameState !== 'level' || levelResult) return;
+    if (battle.phase !== 'awaiting-action' || !battle.activeUnit) return;
+    const u = battle.activeUnit;
+    if (u === player) performPlayerAttack();
+    else performPetAttack(u, 'strike');
+  }
+
+  function resolveEnemyTurn(){
+    const enemy = battle.activeUnit;
+    const f = enemy.pairedFighter;
+    if (f){
+      const dmg = enemy.type.dmg;
+      spawnBurst(fighterX(f), fighterY(f), ['#ff8080','#ffffff']);
+      if (f === player){
+        player.hp = Math.max(0, player.hp - dmg);
+        showToast('-' + dmg + ' HP', 'bad');
+        if (player.hp <= 0){
+          loseLevel();
+          return;
+        }
+      } else {
+        f.battleHp = Math.max(0, f.battleHp - dmg);
+        if (f.battleHp <= 0){
+          f.aliveInBattle = false;
+          f.pairedEnemy = null;
+          enemy.pairedFighter = null;
+          showToast(petDisplayName(f) + ' was knocked out!', 'bad');
+          if (benchCandidates().length){
+            openSwapPrompt(f);
+            return;
+          }
+          if (checkFighterWipeout()) return;
+        } else {
+          showToast(petDisplayName(f) + ' took ' + dmg + ' damage', 'bad');
+        }
+      }
+    }
+    battle.queueIndex++;
+    advanceTurn();
+  }
+
+  function endRound(){
+    battle.activeUnit = null;
+    if (levelEnemies.length === 0){
+      if (currentWaveIndex < waveQueue.length - 1){
+        battle.phase = 'wave-intro';
+        battle.actionAt = performance.now() + WAVE_BANNER_MS;
+        showToast('Wave cleared!', 'good');
+      } else {
+        winLevel();
+      }
+      return;
+    }
+    battle.round++;
+    startRound();
+  }
+
+  function winLevel(){
+    levelResult = 'won';
+    const lvl = LEVELS[currentLevelIndex];
+    lvl.cleared = true;
+    if (LEVELS[currentLevelIndex+1]) LEVELS[currentLevelIndex+1].unlocked = true;
+    const bonus = 15 + lvl.id*10;
+    playerXP += bonus;
+    updateXPBadge();
+    showToast('+' + bonus + ' XP!', 'good');
+
+    // Pets level up naturally: every pet that was brought into this
+    // battle gains a level for winning it, whether or not it fainted -
+    // up to MAX_FREE_LEVEL. Beyond that, further levels must be bought
+    // with XP (see openPetStats()'s Level Up button).
+    const fighters = activeCats.filter(c => c.inFight);
+    const leveled = [];
+    fighters.forEach(c => {
+      const cur = c.level||1;
+      if (cur < MAX_FREE_LEVEL){
+        c.level = cur + 1;
+        leveled.push(c);
+      }
+    });
+    if (leveled.length === 1){
+      showToast(petDisplayName(leveled[0]) + ' reached level ' + leveled[0].level + '!', 'good');
+    } else if (leveled.length > 1){
+      showToast('Your squad leveled up!', 'good');
+    }
+    renderCollection();
+
+    renderLevels();
+    showOverlay('win');
+    autosaveCurrentSlot();
+  }
+
+  function loseLevel(){
+    levelResult = 'lost';
+    showOverlay('lose');
+  }
+
+  /* ------------------------------------------------------------------
+   * Level flow / hub-vs-level state
+   * ---------------------------------------------------------------- */
+  function startLevel(index, options){
+    const lvl = LEVELS[index];
+    if (!lvl || !lvl.unlocked) return;
+    options = options || lastLevelOptions;
+    lastLevelOptions = options;
+    currentLevelIndex = index;
+    gameState = 'level';
+    levelResult = null;
+    battle.caughtThisLevel = false;
+    hideOverlay();
+    closeModeOverlay();
+
+    player.hp = player.maxHp;
+    player.attackEndTime = 0;
+    player.pairedEnemy = null;
+    player.facing = 1;
+
+    const sel = options.selectedIds || [];
+    activeCats.forEach(c => c.inFight = sel.includes(c.def.id));
+    activeCats.forEach(c=>{
+      c.battleMaxHp = petMaxHp(c);
+      c.battleHp = c.battleMaxHp;
+      c.aliveInBattle = true;
+      c.pairedEnemy = null;
+      c.pounceUntil = 0;
+      if (c.inFight) wakePetForBattle(c);
+    });
+
+    waveQueue = buildWaveQueue(lvl, options);
+    currentWaveIndex = 0;
+
+    const fighters = activeCats.filter(c => c.inFight);
+    if (fighters.length === 0){
+      showToast('Tip: bring a pet into battle for backup!', 'bad');
+    }
+    showToast('Level ' + lvl.id + ': ' + lvl.name, 'good');
+    updateUIForState();
+    renderLevels();
+    startWave();
+  }
+
+  function returnToHub(){
+    gameState = 'hub';
+    levelResult = null;
+    levelEnemies.forEach(e=>{ e.pairedFighter = null; });
+    levelEnemies.length = 0;
+    waveQueue = [];
+    currentWaveIndex = 0;
+    battle.phase = 'idle';
+    battle.queue = [];
+    battle.activeUnit = null;
+    player.pairedEnemy = null;
+    activeCats.forEach(c => { c.inFight = true; c.pairedEnemy = null; c.aliveInBattle = true; });
+    updateUIForState();
+    autosaveCurrentSlot();
+  }
+
+  function updateUIForState(){
+    const inLevel = gameState === 'level';
+    document.getElementById('hubControls').classList.toggle('hidden', inLevel);
+    document.getElementById('levelHud').classList.toggle('hidden', !inLevel);
+    document.getElementById('battlePanel').classList.toggle('hidden', !inLevel);
+    petActionBar.classList.toggle('hidden', inLevel);
+  }
+
+  // Keeps the bottom action bar's buttons enabled/disabled in step with
+  // whether a pet is currently within range - re-checked every frame since
+  // both the player and wandering pets are constantly moving.
+  function renderPetActionBar(){
+    if (gameState !== 'hub') return;
+    const nearby = !!findNearestPetInRange();
+    actionFeedBtn.disabled = !nearby;
+    actionSwapBtn.disabled = !nearby;
+    actionRenameBtn.disabled = !nearby;
+  }
+
+  const levelOverlay = document.getElementById('levelOverlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const overlayPrimary = document.getElementById('overlayPrimary');
+
+  function showOverlay(kind){
+    if (kind === 'win'){
+      const hasNext = !!LEVELS[currentLevelIndex+1];
+      overlayTitle.textContent = '🎉 Level Cleared!';
+      overlaySub.textContent = hasNext ? 'Nice teamwork! Ready for the next challenge?' : 'You and your cats beat every level so far!';
+      overlayPrimary.textContent = hasNext ? 'Next Level' : 'Replay Level';
+    } else {
+      overlayTitle.textContent = '😿 Level Failed';
+      overlaySub.textContent = 'Your cat squad needs another try.';
+      overlayPrimary.textContent = 'Retry Level';
+    }
+    levelOverlay.classList.remove('hidden');
+  }
+  function hideOverlay(){
+    levelOverlay.classList.add('hidden');
+  }
+
+  /* ------------------------------------------------------------------
+   * Battle mode picker (1v1 / 2v2) shown before each level
+   * ---------------------------------------------------------------- */
+  const modeOverlay = document.getElementById('modeOverlay');
+  const modeOverlayCard = document.getElementById('modeOverlayCard');
+
+  function openModeSelect(index){
+    pendingLevelIndex = index;
+    pendingMode = null;
+    pendingSelection = [];
+    renderModeStep();
+    modeOverlay.classList.remove('hidden');
+  }
+
+  function closeModeOverlay(){
+    modeOverlay.classList.add('hidden');
+  }
+
+  function renderModeStep(){
+    const lvl = LEVELS[pendingLevelIndex];
+    modeOverlayCard.innerHTML = '';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = 'Choose Battle Mode';
+    modeOverlayCard.appendChild(h2);
+
+    const p = document.createElement('p');
+    p.textContent = lvl.name;
+    modeOverlayCard.appendChild(p);
+
+    const hint = document.createElement('p');
+    hint.style.fontSize = '12px';
+    hint.style.opacity = '0.75';
+    hint.textContent = 'You cheer from the sideline while your chosen pet(s) duel every enemy in the level, wave by wave - if one goes down, you can swap in another from your collection.';
+    modeOverlayCard.appendChild(hint);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+
+    const oneBtn = document.createElement('button');
+    oneBtn.type = 'button';
+    oneBtn.textContent = '1 vs 1';
+    oneBtn.disabled = discovered.size < 1;
+    oneBtn.addEventListener('click', ()=>{
+      pendingMode = '1v1';
+      pendingSelection = [];
+      renderPickStep();
+    });
+    actions.appendChild(oneBtn);
+
+    const twoBtn = document.createElement('button');
+    twoBtn.type = 'button';
+    twoBtn.textContent = '2 vs 2';
+    twoBtn.disabled = discovered.size < 2;
+    twoBtn.addEventListener('click', ()=>{
+      pendingMode = '2v2';
+      pendingSelection = [];
+      renderPickStep();
+    });
+    actions.appendChild(twoBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', closeModeOverlay);
+    actions.appendChild(cancelBtn);
+
+    modeOverlayCard.appendChild(actions);
+  }
+
+  function renderPickStep(){
+    const needed = pendingMode === '1v1' ? 1 : 2;
+    modeOverlayCard.innerHTML = '';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = 'Pick Your ' + (needed === 1 ? 'Pet' : 'Pets');
+    modeOverlayCard.appendChild(h2);
+
+    const p = document.createElement('p');
+    p.textContent = 'Choose ' + needed + ' from your collection';
+    modeOverlayCard.appendChild(p);
+
+    const grid = document.createElement('div');
+    grid.className = 'pick-grid';
+
+    PETS.filter(c => discovered.has(c.id)).forEach(cat=>{
+      const card = document.createElement('div');
+      card.className = 'pick-card' + (pendingSelection.includes(cat.id) ? ' selected' : '');
+
+      const mini = document.createElement('canvas');
+      mini.width = 56; mini.height = 56;
+      const mctx = mini.getContext('2d');
+      const catInst = activeCats.find(a => a.def.id === cat.id);
+      drawPet(mctx, 28, 34, 16, cat, { stage: dragonStageFor(catInst||1) });
+      card.appendChild(mini);
+
+      const label = document.createElement('div');
+      label.className = 'pick-name';
+      label.textContent = cat.name;
+      card.appendChild(label);
+
+      card.addEventListener('click', ()=>{
+        const at = pendingSelection.indexOf(cat.id);
+        if (at > -1){
+          pendingSelection.splice(at,1);
+        } else if (pendingSelection.length < needed){
+          pendingSelection.push(cat.id);
+        }
+        renderPickStep();
+      });
+
+      grid.appendChild(card);
+    });
+
+    modeOverlayCard.appendChild(grid);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+
+    const startBtn = document.createElement('button');
+    startBtn.type = 'button';
+    startBtn.textContent = 'Start Battle';
+    startBtn.disabled = pendingSelection.length !== needed;
+    startBtn.addEventListener('click', ()=>{
+      closeModeOverlay();
+      startLevel(pendingLevelIndex, { mode: pendingMode, selectedIds: pendingSelection.slice() });
+    });
+    actions.appendChild(startBtn);
+
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'secondary';
+    backBtn.textContent = 'Back';
+    backBtn.addEventListener('click', renderModeStep);
+    actions.appendChild(backBtn);
+
+    modeOverlayCard.appendChild(actions);
+  }
+
+  overlayPrimary.addEventListener('click', ()=>{
+    if (levelResult === 'lost'){
+      startLevel(currentLevelIndex, lastLevelOptions);
+    } else {
+      const next = currentLevelIndex+1;
+      startLevel(LEVELS[next] ? next : currentLevelIndex, lastLevelOptions);
+    }
+  });
+  document.getElementById('overlayHub').addEventListener('click', ()=>{
+    hideOverlay();
+    returnToHub();
+  });
+  document.getElementById('retreatBtn').addEventListener('click', returnToHub);
+
+  /* ------------------------------------------------------------------
+   * Spawn particle burst (reused for summons, enemy defeats, hits)
+   * ---------------------------------------------------------------- */
+  const particles = [];
+  function spawnBurst(x,y,colors){
+    colors = colors || ['#ffd35c','#ff9a62'];
+    for(let i=0;i<22;i++){
+      const ang = Math.random()*Math.PI*2;
+      const spd = 1.5 + Math.random()*2.5;
+      particles.push({
+        x,y,
+        vx: Math.cos(ang)*spd,
+        vy: Math.sin(ang)*spd - 1,
+        life: 40 + Math.random()*15,
+        maxLife: 55,
+        color: colors[Math.floor(Math.random()*colors.length)]
+      });
+    }
+  }
+  function spawnHearts(x,y){
+    for(let i=0;i<10;i++){
+      const ang = -Math.PI/2 + (Math.random()*1.4 - 0.7);
+      const spd = 1 + Math.random()*1.3;
+      particles.push({
+        x, y,
+        vx: Math.cos(ang)*spd*0.4,
+        vy: Math.sin(ang)*spd - 1.4,
+        life: 45 + Math.random()*20,
+        maxLife: 65,
+        color: ['#ff6b9d','#ff8fab','#ffb6c9'][Math.floor(Math.random()*3)],
+        shape: 'heart'
+      });
+    }
+  }
+  function updateParticles(){
+    for (let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vy += 0.06;
+      p.life--;
+      if (p.life <= 0) particles.splice(i,1);
+    }
+  }
+  function drawParticles(){
+    particles.forEach(p=>{
+      ctx.globalAlpha = Math.max(0, p.life/p.maxLife);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'heart'){
+        const s = 3.4;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y + s*0.6);
+        ctx.bezierCurveTo(p.x - s*1.3, p.y - s*0.6, p.x - s*0.4, p.y - s*1.6, p.x, p.y - s*0.35);
+        ctx.bezierCurveTo(p.x + s*0.4, p.y - s*1.6, p.x + s*1.3, p.y - s*0.6, p.x, p.y + s*0.6);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  /* ------------------------------------------------------------------
+   * Background
+   * ---------------------------------------------------------------- */
+  const bushes = [];
+  for(let i=0;i<8;i++){
+    bushes.push({ x: Math.random()*W, y: Math.random()*H, r: 14+Math.random()*18 });
+  }
+  // The grass/checkerboard/bushes never change frame-to-frame, so paint them
+  // once onto an offscreen canvas and just blit that each frame instead of
+  // re-running a gradient fill + ~175 tile fillRects + bush draws 60x/sec.
+  const bgCanvas = document.createElement('canvas');
+  bgCanvas.width = W; bgCanvas.height = H;
+  (function paintBackgroundCache(){
+    const bctx = bgCanvas.getContext('2d');
+    const grad = bctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#cdeeab');
+    grad.addColorStop(1,'#a9dd85');
+    bctx.fillStyle = grad;
+    bctx.fillRect(0,0,W,H);
+
+    bctx.fillStyle = 'rgba(255,255,255,0.15)';
+    for(let x=0;x<W;x+=40){
+      for(let y=0;y<H;y+=40){
+        if ((x/40 + y/40) % 2 === 0) bctx.fillRect(x,y,40,40);
+      }
+    }
+
+    bushes.forEach(b=>{
+      bctx.fillStyle = 'rgba(60,120,50,0.35)';
+      bctx.beginPath();
+      bctx.ellipse(b.x, b.y, b.r, b.r*0.6, 0, 0, Math.PI*2);
+      bctx.fill();
+    });
+  })();
+
+  // A second, cozy indoor background for the unlockable second room -
+  // wooden floorboards and a soft rug, cached the same way as the lawn.
+  const bgCanvas2 = document.createElement('canvas');
+  bgCanvas2.width = W; bgCanvas2.height = H;
+  (function paintBackgroundCache2(){
+    const bctx = bgCanvas2.getContext('2d');
+    const grad = bctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#e8cfa0');
+    grad.addColorStop(1,'#d0a869');
+    bctx.fillStyle = grad;
+    bctx.fillRect(0,0,W,H);
+
+    // floorboard planks
+    bctx.strokeStyle = 'rgba(120,80,40,0.25)';
+    bctx.lineWidth = 2;
+    for(let x=0; x<W; x+=54){
+      bctx.beginPath();
+      bctx.moveTo(x, 0);
+      bctx.lineTo(x, H);
+      bctx.stroke();
+    }
+    for(let y=0; y<H; y+=110){
+      bctx.beginPath();
+      bctx.moveTo(0, y);
+      bctx.lineTo(W, y);
+      bctx.stroke();
+    }
+
+    // a big cozy rug in the middle
+    bctx.save();
+    bctx.translate(W/2, H/2 + 10);
+    bctx.fillStyle = '#c9536b';
+    bctx.beginPath();
+    bctx.ellipse(0, 0, 170, 100, 0, 0, Math.PI*2);
+    bctx.fill();
+    bctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    bctx.lineWidth = 4;
+    bctx.beginPath();
+    bctx.ellipse(0, 0, 140, 78, 0, 0, Math.PI*2);
+    bctx.stroke();
+    bctx.restore();
+  })();
+
+  function drawBackground(){
+    const useSecond = gameState === 'hub' && hubArea === 'room2';
+    ctx.drawImage(useSecond ? bgCanvas2 : bgCanvas, 0, 0);
+  }
+
+  /* ------------------------------------------------------------------
+   * Shop stand - a physical market stall drawn right on the hub map.
+   * Click it, or walk up to it, to open the Shop overlay.
+   * ---------------------------------------------------------------- */
+  function drawShopStand(){
+    const t = performance.now();
+    const bob = Math.sin(t/450) * 2;
+    const { x, y, radius: r } = shopStand;
+
+    // invite-to-click pulse ring
+    const pulse = 0.5 + 0.5*Math.sin(t/300);
+    ctx.beginPath();
+    ctx.arc(x, y + r*0.4, r + 10 + pulse*4, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,214,74,${0.3 + pulse*0.3})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // shadow
+    ctx.save();
+    ctx.translate(x, y + r*0.95);
+    ctx.scale(1, 0.3);
+    ctx.beginPath();
+    ctx.arc(0, 0, r*0.9, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(x, y + bob);
+
+    // side posts
+    ctx.fillStyle = '#8a5a34';
+    ctx.fillRect(-r*0.78, -r*0.1, r*0.16, r*1.05);
+    ctx.fillRect(r*0.62, -r*0.1, r*0.16, r*1.05);
+
+    // counter
+    ctx.fillStyle = '#dba15c';
+    ctx.fillRect(-r*0.9, r*0.5, r*1.8, r*0.4);
+    ctx.strokeStyle = '#8a5a34';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(-r*0.9, r*0.5, r*1.8, r*0.4);
+
+    // striped awning
+    const stripes = 6;
+    const awningW = r*2.2, awningX = -awningW/2, awningY = -r*0.98, awningH = r*0.42;
+    for(let i=0;i<stripes;i++){
+      ctx.fillStyle = i % 2 === 0 ? '#ff6b6b' : '#fff4e0';
+      ctx.beginPath();
+      ctx.moveTo(awningX + (awningW/stripes)*i, awningY);
+      ctx.lineTo(awningX + (awningW/stripes)*(i+1), awningY);
+      ctx.lineTo(awningX + (awningW/stripes)*(i+1) + r*0.14, awningY + awningH);
+      ctx.lineTo(awningX + (awningW/stripes)*i + r*0.14, awningY + awningH);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(awningX, awningY, awningW, 0.001);
+
+    // sign text
+    ctx.fillStyle = '#5a3a20';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('\ud83d\uded2 SHOP', 0, -r*0.18);
+
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * Book stand - a physical pedestal with an open book, drawn in the
+   * corner of both hub areas. Click it, or walk up to it, to open the
+   * pet room picker. Dims and reads "Locked" until the second room is
+   * unlocked (300 XP, via the teleport pad).
+   * ---------------------------------------------------------------- */
+  function drawBookStand(){
+    const t = performance.now();
+    const { x, y, radius: r } = bookStand;
+    const unlocked = roomUnlocked;
+    const bob = Math.sin(t/450 + 1.3) * 2;
+
+    if (unlocked){
+      const pulse = 0.5 + 0.5*Math.sin(t/300);
+      ctx.beginPath();
+      ctx.arc(x, y + r*0.4, r + 10 + pulse*4, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(155,107,255,${0.3 + pulse*0.3})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // shadow
+    ctx.save();
+    ctx.translate(x, y + r*0.95);
+    ctx.scale(1, 0.3);
+    ctx.beginPath();
+    ctx.arc(0, 0, r*0.85, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = unlocked ? 1 : 0.5;
+
+    // little wooden pedestal
+    ctx.fillStyle = '#8a5a34';
+    ctx.fillRect(x - r*0.45, y + r*0.15, r*0.9, r*0.5);
+    ctx.strokeStyle = '#5a3a20';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - r*0.45, y + r*0.15, r*0.9, r*0.5);
+
+    // the book itself
+    ctx.font = 'bold ' + Math.round(r*1.15) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\ud83d\udcd6', x, y + bob - r*0.1);
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(60,50,40,0.75)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(unlocked ? 'Pet Rooms' : 'Locked', x, y + r*0.95);
+    ctx.restore();
+  }
+
+  // A cozy little pet bed - a soft cushion inside a woven-look basket rim.
+  function drawPetBed(bed){
+    ctx.save();
+    ctx.translate(bed.x, bed.y);
+
+    ctx.save();
+    ctx.scale(1, 0.4);
+    ctx.beginPath();
+    ctx.arc(0, bed.r*1.2, bed.r*0.95, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bed.r, bed.r*0.62, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#a9754a';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(0, -bed.r*0.06, bed.r*0.78, bed.r*0.48, 0, 0, Math.PI*2);
+    ctx.fillStyle = bed.color;
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, -bed.r*0.06, bed.r*0.5, bed.r*0.3, 0, 0, Math.PI*2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Food and water bowls - decorative stands that live in both hub areas.
+  // Wandering pets occasionally toddle over for a snack or sip.
+  function drawFoodStand(){
+    const t = performance.now();
+    const { x, y, r } = foodStand;
+    ctx.save();
+    ctx.translate(x, y);
+
+    ctx.save();
+    ctx.scale(1, 0.4);
+    ctx.beginPath();
+    ctx.arc(0, r*1.2, r*0.9, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r*0.55, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#d8d8d8';
+    ctx.fill();
+    ctx.strokeStyle = '#aaaaaa';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(0, -r*0.05, r*0.72, r*0.38, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#c98a4b';
+    ctx.fill();
+
+    ctx.font = Math.round(r*0.9) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\ud83c\udf56', 0, -r*0.15 + Math.sin(t/450)*1.5);
+
+    ctx.restore();
+  }
+
+  function drawWaterStand(){
+    const t = performance.now();
+    const { x, y, r } = waterStand;
+    ctx.save();
+    ctx.translate(x, y);
+
+    ctx.save();
+    ctx.scale(1, 0.4);
+    ctx.beginPath();
+    ctx.arc(0, r*1.2, r*0.9, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r*0.55, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#d8d8d8';
+    ctx.fill();
+    ctx.strokeStyle = '#aaaaaa';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(0, -r*0.05, r*0.72, r*0.38, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#6ab6e8';
+    ctx.fill();
+
+    ctx.font = Math.round(r*0.9) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\ud83d\udca7', 0, -r*0.15 + Math.sin(t/450 + 1)*1.5);
+
+    ctx.restore();
+  }
+
+  // A softly glowing swirl pad. In the main hub it leads to the second
+  // room (once unlocked); in the second room the same pad leads back.
+  function drawTeleportPad(){
+    const t = performance.now();
+    const { x, y, radius: r } = teleportPad;
+    const pulse = 0.5 + 0.5*Math.sin(t/280);
+
+    ctx.save();
+    ctx.translate(x, y + r*0.4);
+    ctx.scale(1, 0.42);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI*2);
+    const ringColor = (hubArea === 'main' && !roomUnlocked) ? '#b0b0b0' : '#9b6bff';
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(x, y + r*0.4);
+    ctx.scale(1, 0.42);
+    for(let i=0;i<3;i++){
+      ctx.beginPath();
+      ctx.arc(0, 0, r*0.5 + i*8 + pulse*4, 0, Math.PI*2);
+      ctx.strokeStyle = ringColor;
+      ctx.globalAlpha = 0.35 - i*0.08 + pulse*0.1;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = '18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\ud83c\udf00', x, y + Math.sin(t/300)*2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(60,50,40,0.75)';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    const label = hubArea === 'main' ? (roomUnlocked ? 'Room' : '300 XP') : 'Hub';
+    ctx.fillText(label, x, y + r*0.95);
+    ctx.restore();
+  }
+
+  /* ------------------------------------------------------------------
+   * Main loop
+   * ---------------------------------------------------------------- */
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    drawBackground();
+    if (gameState === 'hub'){
+      if (hubArea === 'main') drawShopStand();
+      drawBookStand();
+      drawTeleportPad();
+      drawFoodStand();
+      drawWaterStand();
+      petBeds.filter(b => (b.room||'main') === hubArea).forEach(drawPetBed);
+    }
+    if (gameState === 'level'){
+      drawBattleConnections();
+      drawActiveHighlight();
+    }
+    drawPlayer();
+    drawAttackSwipes();
+    if (gameState === 'level') drawEnemies();
+    drawCats();
+    drawParticles();
+  }
+
+  // Tracks which battle unit+phase the attack-choice buttons were last
+  // built for, so we only rebuild that DOM when something actually
+  // changes (rebuilding every animation frame was the source of the
+  // earlier lag bug elsewhere in this file).
+  let renderedAttackKey = null;
+  const attackChoicesEl = document.getElementById('attackChoices');
+
+  function clearAttackChoices(){
+    if (renderedAttackKey !== null){
+      attackChoicesEl.innerHTML = '';
+      renderedAttackKey = null;
+    }
+  }
+
+  function renderAttackChoices(u){
+    // Catching happens on whichever fighter's turn is active - in
+    // practice that's always a pet, since only pets take the field (see
+    // buildFighterList()), but this checks `u.pairedEnemy` generically
+    // so it still works correctly if that were ever the player instead.
+    const canCatch = !!(u && u.pairedEnemy && u.pairedEnemy.type.catchable && catchingUnlocked() && !battle.caughtThisLevel);
+    const key = (u === player ? 'player' : (u && u.def ? u.def.id : 'x')) + ':' + (u && u.level ? u.level : 1) + ':' + (canCatch ? 'catch' : 'nocatch');
+    if (renderedAttackKey === key) return;
+    renderedAttackKey = key;
+    attackChoicesEl.innerHTML = '';
+
+    function appendCatchButton(){
+      const catchBtn = document.createElement('button');
+      catchBtn.type = 'button';
+      const catchName = document.createElement('span');
+      catchName.className = 'move-name';
+      catchName.textContent = '🎯 Catch!';
+      catchBtn.appendChild(catchName);
+      const catchDesc = document.createElement('span');
+      catchDesc.className = 'move-desc';
+      catchDesc.textContent = Math.round(catchSuccessChance(u.pairedEnemy)*100) + '% chance - 1 per level - press L';
+      catchBtn.appendChild(catchDesc);
+      catchBtn.addEventListener('click', attemptCatch);
+      attackChoicesEl.appendChild(catchBtn);
+    }
+
+    if (u === player){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const name = document.createElement('span');
+      name.className = 'move-name';
+      name.textContent = 'Attack!';
+      btn.appendChild(name);
+      btn.addEventListener('click', performPlayerAttack);
+      attackChoicesEl.appendChild(btn);
+      if (canCatch) appendCatchButton();
+      return;
+    }
+
+    movesForPet(u).forEach(move=>{
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const name = document.createElement('span');
+      name.className = 'move-name';
+      name.textContent = move.label;
+      btn.appendChild(name);
+      const desc = document.createElement('span');
+      desc.className = 'move-desc';
+      let info = move.desc;
+      if (move.dmgBonus) info += ' (+' + move.dmgBonus + ' dmg)';
+      if (move.missChance) info += ' (' + Math.round(move.missChance*100) + '% miss)';
+      desc.textContent = info;
+      btn.appendChild(desc);
+      btn.addEventListener('click', ()=> performPetAttack(u, move.key));
+      attackChoicesEl.appendChild(btn);
+    });
+    if (canCatch) appendCatchButton();
+  }
+
+  function renderHud(){
+    if (gameState !== 'level') return;
+    const lvl = LEVELS[currentLevelIndex];
+    document.getElementById('hudLevelName').textContent = 'Level ' + lvl.id + ': ' + lvl.name;
+    document.getElementById('hudEnemies').textContent = 'Enemies left: ' + levelEnemies.length;
+    let hearts = '';
+    for(let i=0;i<player.maxHp;i++) hearts += i < player.hp ? '❤️' : '🖤';
+    document.getElementById('hudHearts').textContent = hearts;
+
+    const waveBanner = document.getElementById('waveBanner');
+    const turnBanner = document.getElementById('turnBanner');
+
+    if (levelResult){
+      waveBanner.textContent = '';
+      turnBanner.textContent = levelResult === 'won' ? 'Victory!' : 'Defeated...';
+      clearAttackChoices();
+      return;
+    }
+
+    if (battle.phase === 'wave-intro'){
+      waveBanner.textContent = 'Wave ' + (currentWaveIndex+2) + ' incoming...';
+      turnBanner.textContent = 'Get ready!';
+      clearAttackChoices();
+      return;
+    }
+
+    if (battle.phase === 'swap-prompt'){
+      waveBanner.textContent = '';
+      turnBanner.textContent = (pendingSwapOut ? petDisplayName(pendingSwapOut) : 'Your pet') + ' is down - choose a replacement!';
+      clearAttackChoices();
+      return;
+    }
+
+    waveBanner.textContent = waveQueue.length > 1 ? ('Wave ' + (currentWaveIndex+1) + ' of ' + waveQueue.length) : '';
+
+    if (battle.phase === 'awaiting-action' && battle.activeUnit){
+      const u = battle.activeUnit;
+      turnBanner.textContent = (u === player ? "🐾 Your turn!" : "🐾 " + fighterName(u) + "'s turn!");
+      renderAttackChoices(u);
+    } else if (battle.phase === 'healing-action' && battle.activeUnit){
+      turnBanner.textContent = '💚 ' + fighterName(battle.activeUnit) + ' is tending to a friend...';
+      clearAttackChoices();
+    } else if (battle.phase === 'enemy-acting' && battle.activeUnit){
+      turnBanner.textContent = '👹 ' + battle.activeUnit.type.name + ' is attacking...';
+      clearAttackChoices();
+    } else {
+      turnBanner.textContent = '';
+      clearAttackChoices();
+    }
+  }
+
+  function loop(){
+    updatePlayer();
+    updateParticles();
+    updateCats();
+    if (gameState === 'level' && !levelResult){
+      const now = performance.now();
+      if (battle.phase === 'enemy-acting' && now >= battle.actionAt){
+        resolveEnemyTurn();
+      } else if (battle.phase === 'healing-action' && now >= battle.actionAt){
+        resolveHealTurn();
+      } else if (battle.phase === 'wave-intro' && now >= battle.actionAt){
+        currentWaveIndex++;
+        startWave();
+      }
+    }
+    render();
+    renderHud();
+    renderPetActionBar();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ------------------------------------------------------------------
+   * Collection panel
+   * ---------------------------------------------------------------- */
+  const catGrid = document.getElementById('catGrid');
+  const progressText = document.getElementById('progressText');
+
+  function renderCollection(){
+    catGrid.innerHTML = '';
+    PETS.forEach(pet=>{
+      const slot = document.createElement('div');
+      const unlocked = discovered.has(pet.id);
+      slot.className = 'cat-slot ' + (unlocked ? 'unlocked' : 'locked');
+
+      const inst = unlocked ? activeCats.find(a => a.def.id === pet.id) : null;
+
+      const mini = document.createElement('canvas');
+      mini.width = 56; mini.height = 56;
+      const mctx = mini.getContext('2d');
+      if (unlocked){
+        drawPet(mctx, 28, 34, 16, pet, { stage: dragonStageFor(inst||1) });
+      } else {
+        mctx.fillStyle = '#d8cdbf';
+        mctx.beginPath();
+        mctx.arc(28,28,16,0,Math.PI*2);
+        mctx.fill();
+        mctx.fillStyle = '#fff';
+        mctx.font = 'bold 18px sans-serif';
+        mctx.textAlign = 'center';
+        mctx.textBaseline = 'middle';
+        mctx.fillText('?', 28, 29);
+      }
+      slot.appendChild(mini);
+
+      const label = document.createElement('div');
+      label.className = 'cat-name';
+      label.textContent = unlocked
+        ? ((inst ? petDisplayName(inst) : pet.name) + (inst && inst.level > 1 ? ' Lv.' + inst.level : '') + (pet.shopOnly ? ' \u2b50' : ''))
+        : (pet.shopOnly ? '\ud83d\uded2 Shop' : (pet.catchOnly ? '\ud83c\udfaf Catch' : '???'));
+      slot.appendChild(label);
+
+      if (unlocked && inst){
+        const happy = document.createElement('div');
+        happy.className = 'cat-happy';
+        happy.textContent = '\ud83d\udc95 ' + (inst.happiness||0) + '%';
+        slot.appendChild(happy);
+      }
+
+      if (unlocked && inst){
+        slot.addEventListener('click', ()=> openPetStats(inst));
+      }
+
+      catGrid.appendChild(slot);
+    });
+    progressText.textContent = `${discovered.size} / ${PETS.length} discovered`;
+  }
+  renderCollection();
+
+  /* ------------------------------------------------------------------
+   * Pet stats popup - click any pet you've collected to see its level,
+   * battle HP, and attack, plus how many treats it's used toward the cap.
+   * ---------------------------------------------------------------- */
+  const petStatsOverlay = document.getElementById('petStatsOverlay');
+  const petStatsOverlayCard = document.getElementById('petStatsOverlayCard');
+
+  // Tracks whether the currently-open pet stats popup should offer the
+  // touch-only Feed/Swap Accessory quick actions (only true when opened by
+  // tapping a pet in-range on the canvas - see handlePetTap()/updatePlayer()
+  // above). Remembered across reopens (after Level Up / Rename) so the
+  // extra buttons don't disappear mid-interaction.
+  let petStatsInteractive = false;
+
+  function openPetStats(inst, opts){
+    petStatsInteractive = !!(opts && opts.interactive);
+    petStatsOverlayCard.innerHTML = '';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = petDisplayName(inst);
+    petStatsOverlayCard.appendChild(h2);
+
+    const mini = document.createElement('canvas');
+    mini.width = 72; mini.height = 72;
+    mini.style.display = 'block';
+    mini.style.margin = '4px auto 8px';
+    const mctx = mini.getContext('2d');
+    drawPet(mctx, 36, 42, 20, inst.def, { stage: dragonStageFor(inst) });
+    petStatsOverlayCard.appendChild(mini);
+
+    const list = document.createElement('div');
+    list.className = 'pet-stats-list';
+    const rows = [
+      ['Level', String(inst.level||1)],
+      ['Battle HP', String(petMaxHp(inst))],
+      ['Attack', String(petAtk(inst))],
+      ['HP Treats used', (inst.bonusHp||0) + ' / ' + MAX_HP_TREATS],
+      ['Power Treats used', (inst.bonusDmg||0) + ' / ' + MAX_DMG_TREATS],
+      ['Happiness', (inst.happiness||0) + '%']
+    ];
+    if (inst.def.species === 'dragon'){
+      const stage = dragonStageFor(inst);
+      const stageLabel = stage === 'egg' ? 'Egg' : (stage === 'baby' ? 'Baby' : 'Grown');
+      rows.splice(1, 0, ['Stage', stageLabel]);
+    }
+    rows.forEach(([label, value])=>{
+      const row = document.createElement('div');
+      row.innerHTML = '<span>' + label + '</span><strong>' + value + '</strong>';
+      list.appendChild(row);
+    });
+    petStatsOverlayCard.appendChild(list);
+
+    const p = document.createElement('p');
+    p.style.fontSize = '12px';
+    p.style.opacity = '0.75';
+    if (inst.def.species === 'dragon'){
+      p.textContent = 'Dragons hatch at level ' + DRAGON_BABY_LEVEL + ' and reach their full grown form at level ' + DRAGON_ADULT_LEVEL + ' - keep bringing it into battles to help it grow.';
+    } else if ((inst.level||1) >= MAX_FREE_LEVEL){
+      p.textContent = 'Pets level up for free up to level ' + MAX_FREE_LEVEL + ' by winning battles. Past that, pay XP below to keep leveling up.';
+    } else {
+      p.textContent = 'Pets level up automatically for winning battles they fight in (up to level ' + MAX_FREE_LEVEL + ') - visit the Shop to buy treats for extra HP or attack.';
+    }
+    petStatsOverlayCard.appendChild(p);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+
+    if ((inst.level||1) >= MAX_FREE_LEVEL){
+      const levelUpBtn = document.createElement('button');
+      levelUpBtn.type = 'button';
+      levelUpBtn.textContent = 'Level Up (' + LEVEL_UP_XP_COST.toLocaleString() + ' XP)';
+      const affordable = playerXP >= LEVEL_UP_XP_COST;
+      levelUpBtn.disabled = !affordable;
+      levelUpBtn.addEventListener('click', ()=>{
+        if (playerXP < LEVEL_UP_XP_COST) return;
+        playerXP -= LEVEL_UP_XP_COST;
+        inst.level = (inst.level||1) + 1;
+        updateXPBadge();
+        renderCollection();
+        showToast(petDisplayName(inst) + ' reached level ' + inst.level + '! \u2728', 'good');
+        autosaveCurrentSlot();
+        openPetStats(inst, { interactive: petStatsInteractive });
+      });
+      actions.appendChild(levelUpBtn);
+    }
+
+    if (petStatsInteractive){
+      const feedBtn = document.createElement('button');
+      feedBtn.type = 'button';
+      feedBtn.className = 'secondary';
+      feedBtn.textContent = 'Feed \ud83c\udf56';
+      feedBtn.addEventListener('click', ()=>{
+        feedPetInstance(inst);
+        openPetStats(inst, { interactive: true });
+      });
+      actions.appendChild(feedBtn);
+
+      const swapBtn = document.createElement('button');
+      swapBtn.type = 'button';
+      swapBtn.className = 'secondary';
+      swapBtn.textContent = 'Swap Accessory';
+      swapBtn.addEventListener('click', ()=>{
+        swapPetAccessoryInstance(inst);
+        openPetStats(inst, { interactive: true });
+      });
+      actions.appendChild(swapBtn);
+    }
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.className = 'secondary';
+    renameBtn.textContent = 'Rename';
+    renameBtn.addEventListener('click', ()=> openRenamePet(inst));
+    actions.appendChild(renameBtn);
+    const releaseBtn = document.createElement('button');
+    releaseBtn.type = 'button';
+    releaseBtn.className = 'secondary';
+    releaseBtn.textContent = 'Release';
+    releaseBtn.addEventListener('click', ()=> releasePet(inst));
+    actions.appendChild(releaseBtn);
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'secondary';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', closePetStats);
+    actions.appendChild(closeBtn);
+    petStatsOverlayCard.appendChild(actions);
+
+    petStatsOverlay.classList.remove('hidden');
+  }
+  function closePetStats(){
+    petStatsOverlay.classList.add('hidden');
+  }
+
+  // Removes a pet from the player's team for good - reachable via the
+  // Release button on its stats popup. Requires an explicit confirm() so
+  // it can never happen from a stray click (same confirmation pattern
+  // used for deleting a save slot). Also clears the pet's species from
+  // `discovered`, not just `activeCats`, so the collection slot goes back
+  // to locked/"???" and the shop/catch/summon-code flows - which all key
+  // off `discovered`, not just whether an instance currently exists - will
+  // correctly let the player earn or catch that pet again later instead of
+  // leaving a permanently dead, unlockable-looking slot behind.
+  function releasePet(inst){
+    if (gameState !== 'hub'){
+      showToast("Can't release a pet mid-battle!", 'bad');
+      return;
+    }
+    const name = petDisplayName(inst);
+    if (!confirm('Release ' + name + '? This cannot be undone - you\'ll need to catch, unlock, or summon them again to get them back.')) return;
+    const idx = activeCats.indexOf(inst);
+    if (idx > -1) activeCats.splice(idx, 1);
+    if (inst.def) discovered.delete(inst.def.id);
+    closePetStats();
+    renderCollection();
+    autosaveCurrentSlot();
+    showToast(name + ' was released. \ud83d\udc4b');
+  }
+
+  /* ------------------------------------------------------------------
+   * Renaming - give any pet a custom nickname. Reachable via the R key
+   * near a pet in the hub, or the Rename button on its stats popup.
+   * ---------------------------------------------------------------- */
+  const renameOverlay = document.getElementById('renameOverlay');
+  const renameOverlayCard = document.getElementById('renameOverlayCard');
+  const RENAME_MAX_LEN = 18;
+  let renameTarget = null;
+
+  // Kid-friendly name filter - blocks common profanity/slurs, including
+  // simple leetspeak substitutions and inflections like "-er"/"-ing"/
+  // trailing digits. Matches whole words (or safe prefixes) so it won't
+  // flag innocent names that merely contain a blocked word as a substring
+  // (e.g. "Michelle", "Classic", "Cassidy", "Pussycat"). Not exhaustive,
+  // but covers the common cases.
+  const BLOCKED_NAME_WORDS = [
+    'fuck','shit','bitch','bastard','asshole','ass','dick','piss','cunt',
+    'cock','pussy','whore','slut','fag','faggot','nigger','nigga','retard',
+    'damn','hell','crap','douche','twat','wank','bollocks','bugger','tits',
+    'boob','porn','rape','nazi','kike','spic','chink','tranny'
+  ];
+  // Small subset of the above where prefix-matching common suffixes (e.g.
+  // "fucker", "shitty", "bitch123") is safe to do, because no everyday
+  // English words share these prefixes. Words like "ass", "cock", "dick",
+  // "hell", "pussy" are deliberately left out - prefix-matching those would
+  // wrongly flag innocent words/names like "assassin", "cockpit",
+  // "Dickens", "hello", or "Pussycat".
+  const PREFIX_UNSAFE_ROOTS = [
+    'fuck','shit','bitch','cunt','nigger','nigga','fag','faggot',
+    'whore','slut','retard','twat','wank','bastard'
+  ];
+  function leetspeakSub(str){
+    return str
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+      .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+      .replace(/\$/g, 's').replace(/@/g, 'a').replace(/!/g, 'i');
+  }
+  function nameTokens(str){
+    return str.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  }
+  function containsBlockedName(str){
+    const lower = str.toLowerCase();
+    const tokens = new Set([...nameTokens(lower), ...nameTokens(leetspeakSub(lower))]);
+    for (const token of tokens){
+      if (BLOCKED_NAME_WORDS.includes(token)) return true;
+      if (PREFIX_UNSAFE_ROOTS.some(root => token.startsWith(root))) return true;
+    }
+    return false;
+  }
+
+  function openRenamePet(inst){
+    renameTarget = inst;
+    renameOverlayCard.innerHTML = '';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = 'Rename ' + petDisplayName(inst);
+    renameOverlayCard.appendChild(h2);
+
+    const form = document.createElement('form');
+    form.autocomplete = 'off';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'renameInput';
+    input.maxLength = RENAME_MAX_LEN;
+    input.placeholder = inst.def.name;
+    input.value = inst.customName || '';
+    form.appendChild(input);
+    renameOverlayCard.appendChild(form);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', ()=>{
+      const target = renameTarget;
+      const val = input.value.trim();
+      if (val && containsBlockedName(val)){
+        showToast("That name isn't allowed - try something else!", 'bad');
+        input.classList.remove('shake');
+        void input.offsetWidth;
+        input.classList.add('shake');
+        return;
+      }
+      target.customName = val ? val.slice(0, RENAME_MAX_LEN) : null;
+      showToast(petDisplayName(target) + ' has a new name!', 'good');
+      renderCollection();
+      autosaveCurrentSlot();
+      const reopenStats = !petStatsOverlay.classList.contains('hidden');
+      closeRenamePet();
+      if (reopenStats) openPetStats(target, { interactive: petStatsInteractive });
+    });
+    actions.appendChild(saveBtn);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'secondary';
+    resetBtn.textContent = 'Reset to default';
+    resetBtn.addEventListener('click', ()=>{
+      const target = renameTarget;
+      target.customName = null;
+      showToast(petDisplayName(target) + "'s name was reset.", 'good');
+      renderCollection();
+      autosaveCurrentSlot();
+      const reopenStats = !petStatsOverlay.classList.contains('hidden');
+      closeRenamePet();
+      if (reopenStats) openPetStats(target, { interactive: petStatsInteractive });
+    });
+    actions.appendChild(resetBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', closeRenamePet);
+    actions.appendChild(cancelBtn);
+
+    renameOverlayCard.appendChild(actions);
+
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      saveBtn.click();
+    });
+
+    renameOverlay.classList.remove('hidden');
+    setTimeout(()=> input.focus(), 0);
+  }
+  function closeRenamePet(){
+    renameOverlay.classList.add('hidden');
+    renameTarget = null;
+  }
+
+  function renameNearestPet(){
+    if (gameState !== 'hub') return;
+    const nearest = findNearestPetInRange();
+    if (!nearest){
+      showToast('Walk up close to a pet to rename it!', 'bad');
+      return;
+    }
+    openRenamePet(nearest);
+  }
+
+  /* ------------------------------------------------------------------
+   * Levels panel
+   * ---------------------------------------------------------------- */
+  function enemySummary(lvl){
+    if (lvl.enemies.length > 1){
+      return lvl.enemies.map((g,i) => 'Wave ' + (i+1) + ': ' + g.count + 'x ' + ENEMY_TYPES[g.type].name).join(' \u00b7 ');
+    }
+    return lvl.enemies.map(g => g.count + 'x ' + ENEMY_TYPES[g.type].name).join(', ');
+  }
+
+  function renderLevels(){
+    const list = document.getElementById('levelList');
+    list.innerHTML = '';
+    LEVELS.forEach((lvl,i)=>{
+      const row = document.createElement('div');
+      row.className = 'level-row' + (lvl.unlocked ? '' : ' locked');
+
+      const info = document.createElement('div');
+      info.className = 'level-info';
+      info.innerHTML = `<div class="level-name">${lvl.unlocked ? lvl.name : 'Locked'}</div>` +
+        `<div class="level-sub">${lvl.unlocked ? enemySummary(lvl) : 'Beat the previous level'}</div>`;
+      if (lvl.cleared){
+        const badge = document.createElement('span');
+        badge.className = 'cleared-badge';
+        badge.textContent = '✓ Cleared';
+        info.appendChild(badge);
+      }
+      row.appendChild(info);
+
+      const btn = document.createElement('button');
+      btn.textContent = lvl.cleared ? 'Replay' : 'Play';
+      btn.disabled = !lvl.unlocked;
+      btn.type = 'button';
+      btn.addEventListener('click', ()=> openModeSelect(i));
+      row.appendChild(btn);
+
+      list.appendChild(row);
+    });
+  }
+  renderLevels();
+
+  /* ------------------------------------------------------------------
+   * Save system - 3 local save slots persisted in localStorage. Progress
+   * (discovered pets, their levels/happiness, XP, and level unlocks)
+   * auto-saves continuously to whichever slot is active. Players choose
+   * a slot on launch and can switch/save-as/delete slots anytime from
+   * the hub via the "Slot" button.
+   * ---------------------------------------------------------------- */
+  const SAVE_STORAGE_KEY = 'catSummonSaveSlots_v1';
+  const SAVE_SLOT_COUNT = 3;
+  let currentSlot = null;
+  let saveScreenCancelable = false;
+
+  function loadAllSlots(){
+    try {
+      const raw = localStorage.getItem(SAVE_STORAGE_KEY);
+      if (!raw) return new Array(SAVE_SLOT_COUNT).fill(null);
+      const parsed = JSON.parse(raw);
+      const slots = Array.isArray(parsed.slots) ? parsed.slots.slice(0, SAVE_SLOT_COUNT) : [];
+      while (slots.length < SAVE_SLOT_COUNT) slots.push(null);
+      return slots;
+    } catch(e){
+      return new Array(SAVE_SLOT_COUNT).fill(null);
+    }
+  }
+  function writeAllSlots(slots){
+    try {
+      localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ slots }));
+    } catch(e){ /* storage unavailable or full - fail quietly, game still playable */ }
+  }
+
+  function buildSaveData(){
+    return {
+      savedAt: Date.now(),
+      playerXP,
+      discovered: Array.from(discovered),
+      roomUnlocked,
+      levels: LEVELS.map(l => ({ id: l.id, unlocked: l.unlocked, cleared: l.cleared })),
+      pets: activeCats.map(c => ({
+        id: c.def.id, level: c.level||1, bonusHp: c.bonusHp||0,
+        bonusDmg: c.bonusDmg||0, happiness: c.happiness||0, room: c.room||'main',
+        accessory: c.accessory === 'flower' ? 'flower' : 'bowtie',
+        customName: c.customName || null
+      }))
+    };
+  }
+
+  function resetToFreshState(){
+    playerXP = 0;
+    discovered.clear();
+    roomUnlocked = false;
+    hubArea = 'main';
+    LEVELS.forEach(l=>{ l.unlocked = (l.id === 1); l.cleared = false; });
+    activeCats.length = 0;
+    updateXPBadge();
+    renderCollection();
+    renderLevels();
+  }
+
+  function applySaveData(data){
+    playerXP = data.playerXP || 0;
+    discovered.clear();
+    (data.discovered||[]).forEach(id => discovered.add(id));
+    roomUnlocked = !!data.roomUnlocked;
+    hubArea = 'main';
+    LEVELS.forEach(l=>{
+      const saved = (data.levels||[]).find(x=>x.id===l.id);
+      l.unlocked = saved ? !!saved.unlocked : (l.id === 1);
+      l.cleared = saved ? !!saved.cleared : false;
+    });
+    activeCats.length = 0;
+    (data.pets||[]).forEach(p=>{
+      const def = PETS.find(d=>d.id===p.id);
+      if (!def) return;
+      spawnCat(def);
+      const inst = activeCats[activeCats.length-1];
+      inst.level = p.level || 1;
+      // Clamp to the current treat caps in case this save predates them.
+      inst.bonusHp = Math.min(MAX_HP_TREATS, p.bonusHp || 0);
+      inst.bonusDmg = Math.min(MAX_DMG_TREATS, p.bonusDmg || 0);
+      inst.happiness = p.happiness || 0;
+      inst.room = (p.room === 'room2') ? 'room2' : 'main';
+      inst.accessory = (p.accessory === 'flower') ? 'flower' : 'bowtie';
+      inst.customName = p.customName || null;
+    });
+    updateXPBadge();
+    renderCollection();
+    renderLevels();
+  }
+
+  function autosaveCurrentSlot(){
+    if (currentSlot === null) return;
+    const slots = loadAllSlots();
+    slots[currentSlot] = buildSaveData();
+    writeAllSlots(slots);
+    updateSaveSlotButton();
+  }
+
+  function updateSaveSlotButton(){
+    const btn = document.getElementById('saveSlotBtn');
+    if (btn) btn.textContent = '💾 Slot ' + (currentSlot === null ? '-' : currentSlot + 1);
+  }
+
+  function slotSummaryText(data){
+    if (!data) return 'Empty - start a new game here';
+    const petCount = (data.pets||[]).length;
+    let dateStr = '';
+    if (data.savedAt){
+      const d = new Date(data.savedAt);
+      dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    }
+    return petCount + (petCount === 1 ? ' pet' : ' pets') + ' \u00b7 ' + (data.playerXP||0) + ' XP' + (dateStr ? ' \u00b7 saved ' + dateStr : '');
+  }
+
+  const saveOverlay = document.getElementById('saveOverlay');
+  const saveOverlayCard = document.getElementById('saveOverlayCard');
+
+  function openSaveScreen(cancelable){
+    saveScreenCancelable = !!cancelable;
+    renderSaveScreen();
+    saveOverlay.classList.remove('hidden');
+  }
+  function closeSaveScreen(){
+    saveOverlay.classList.add('hidden');
+  }
+
+  function chooseSlot(i, data){
+    currentSlot = i;
+    if (data){
+      applySaveData(data);
+      showToast('Loaded Slot ' + (i+1) + '!', 'good');
+    } else {
+      resetToFreshState();
+      autosaveCurrentSlot();
+      showToast('Started a new game in Slot ' + (i+1) + '!', 'good');
+    }
+    updateSaveSlotButton();
+    closeSaveScreen();
+  }
+
+  function renderSaveScreen(){
+    saveOverlayCard.innerHTML = '';
+    const h2 = document.createElement('h2');
+    h2.textContent = '💾 Save Slots';
+    saveOverlayCard.appendChild(h2);
+    const p = document.createElement('p');
+    p.textContent = saveScreenCancelable
+      ? 'Switch to another slot, or manage your saves. Your current progress is already saved.'
+      : 'Choose a slot to continue your progress, or start a new game.';
+    saveOverlayCard.appendChild(p);
+
+    const slots = loadAllSlots();
+    slots.forEach((data, i)=>{
+      const card = document.createElement('div');
+      card.className = 'slot-card' + (currentSlot === i ? ' active' : '');
+
+      const title = document.createElement('div');
+      title.className = 'slot-title';
+      title.textContent = 'Slot ' + (i+1) + (currentSlot === i ? ' (current)' : '');
+      card.appendChild(title);
+
+      const sub = document.createElement('div');
+      sub.className = 'slot-sub';
+      sub.textContent = slotSummaryText(data);
+      card.appendChild(sub);
+
+      const actions = document.createElement('div');
+      actions.className = 'slot-actions';
+
+      const chooseBtn = document.createElement('button');
+      chooseBtn.type = 'button';
+      chooseBtn.textContent = currentSlot === i ? 'Playing' : (data ? 'Continue' : 'New Game');
+      chooseBtn.disabled = currentSlot === i;
+      chooseBtn.addEventListener('click', ()=> chooseSlot(i, data));
+      actions.appendChild(chooseBtn);
+
+      if (data){
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'secondary';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', ()=>{
+          if (!confirm('Delete this save? This cannot be undone.')) return;
+          const freshSlots = loadAllSlots();
+          freshSlots[i] = null;
+          writeAllSlots(freshSlots);
+          if (currentSlot === i){
+            resetToFreshState();
+            autosaveCurrentSlot();
+          }
+          renderSaveScreen();
+        });
+        actions.appendChild(delBtn);
+      }
+
+      card.appendChild(actions);
+      saveOverlayCard.appendChild(card);
+    });
+
+    if (saveScreenCancelable){
+      const backActions = document.createElement('div');
+      backActions.className = 'overlay-actions stacked';
+      const backBtn = document.createElement('button');
+      backBtn.type = 'button';
+      backBtn.className = 'secondary';
+      backBtn.textContent = 'Back to Game';
+      backBtn.addEventListener('click', closeSaveScreen);
+      backActions.appendChild(backBtn);
+      saveOverlayCard.appendChild(backActions);
+    }
+  }
+
+  document.getElementById('saveSlotBtn').addEventListener('click', ()=>{
+    autosaveCurrentSlot();
+    openSaveScreen(true);
+  });
+
+  // On launch, show the slot picker so the player can continue or start fresh.
+  openSaveScreen(false);
+
+  // Belt-and-suspenders periodic autosave, on top of the event-driven saves
+  // above, in case the tab is closed mid-session without a natural save point.
+  setInterval(autosaveCurrentSlot, 8000);
+
+  /* ------------------------------------------------------------------
+   * Pet room picker (the book stand out on the map) - once the second
+   * room is unlocked, choose which pets live in the main hub vs. the
+   * second room. Pets are shown as a grid of cards; clicking a card
+   * toggles that pet between the two rooms.
+   * ---------------------------------------------------------------- */
+  const petRoomOverlay = document.getElementById('petRoomOverlay');
+  const petRoomOverlayCard = document.getElementById('petRoomOverlayCard');
+
+  // Beyond one page's worth of pets the grid would just keep growing
+  // downward, so once there are more than PET_ROOM_PAGE_SIZE pets we
+  // paginate instead - see renderPetRoomPicker() below.
+  const PET_ROOM_PAGE_SIZE = 15;
+  let petRoomPage = 0;
+
+  function closePetRoomPicker(){
+    petRoomOverlay.classList.add('hidden');
+  }
+
+  function openPetRoomPicker(){
+    if (!roomUnlocked){
+      showToast('Unlock the second room first!', 'bad');
+      return;
+    }
+    petRoomPage = 0;
+    renderPetRoomPicker();
+    petRoomOverlay.classList.remove('hidden');
+  }
+
+  function renderPetRoomPicker(){
+    petRoomOverlayCard.innerHTML = '';
+    const h2 = document.createElement('h2');
+    h2.textContent = '\ud83d\udcd6 Pet Rooms';
+    petRoomOverlayCard.appendChild(h2);
+    const p = document.createElement('p');
+    p.textContent = 'Tap a pet to move it between the main hub and the second room.';
+    petRoomOverlayCard.appendChild(p);
+
+    if (activeCats.length === 0){
+      const empty = document.createElement('p');
+      empty.textContent = 'Summon some pets first!';
+      petRoomOverlayCard.appendChild(empty);
+    } else {
+      const totalPages = Math.max(1, Math.ceil(activeCats.length / PET_ROOM_PAGE_SIZE));
+      petRoomPage = Math.max(0, Math.min(petRoomPage, totalPages - 1));
+      const start = petRoomPage * PET_ROOM_PAGE_SIZE;
+      const pageCats = activeCats.slice(start, start + PET_ROOM_PAGE_SIZE);
+
+      const grid = document.createElement('div');
+      grid.className = 'pick-grid';
+      pageCats.forEach(c=>{
+        const inRoom2 = (c.room||'main') === 'room2';
+        const card = document.createElement('div');
+        card.className = 'pick-card' + (inRoom2 ? ' selected' : '');
+
+        const mini = document.createElement('canvas');
+        mini.width = 56; mini.height = 56;
+        const mctx = mini.getContext('2d');
+        drawPet(mctx, 28, 34, 16, c.def, { stage: dragonStageFor(c) });
+        card.appendChild(mini);
+
+        const label = document.createElement('div');
+        label.className = 'pick-name';
+        label.textContent = petDisplayName(c) + ' (Lv.' + (c.level||1) + ')';
+        card.appendChild(label);
+
+        const sub = document.createElement('div');
+        sub.className = 'pick-sub';
+        sub.textContent = inRoom2 ? 'In: Second Room' : 'In: Main Hub';
+        card.appendChild(sub);
+
+        card.addEventListener('click', ()=>{
+          c.room = inRoom2 ? 'main' : 'room2';
+          renderPetRoomPicker();
+          autosaveCurrentSlot();
+        });
+
+        grid.appendChild(card);
+      });
+      petRoomOverlayCard.appendChild(grid);
+
+      if (totalPages > 1){
+        const pager = document.createElement('div');
+        pager.className = 'pick-pagination';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className = 'secondary';
+        prevBtn.textContent = '\u2190 Prev';
+        prevBtn.disabled = petRoomPage === 0;
+        prevBtn.addEventListener('click', ()=>{
+          petRoomPage--;
+          renderPetRoomPicker();
+        });
+        pager.appendChild(prevBtn);
+
+        const pageLabel = document.createElement('span');
+        pageLabel.className = 'pick-pagination-label';
+        pageLabel.textContent = 'Page ' + (petRoomPage + 1) + ' of ' + totalPages;
+        pager.appendChild(pageLabel);
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className = 'secondary';
+        nextBtn.textContent = 'Next \u2192';
+        nextBtn.disabled = petRoomPage === totalPages - 1;
+        nextBtn.addEventListener('click', ()=>{
+          petRoomPage++;
+          renderPetRoomPicker();
+        });
+        pager.appendChild(nextBtn);
+
+        petRoomOverlayCard.appendChild(pager);
+      }
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'secondary';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', closePetRoomPicker);
+    actions.appendChild(closeBtn);
+    petRoomOverlayCard.appendChild(actions);
+  }
+
+  /* ------------------------------------------------------------------
+   * Shop - spend XP earned from battles on leveling up pets, one-off
+   * stat treats, or unlocking new breeds outright.
+   * ---------------------------------------------------------------- */
+  const shopOverlay = document.getElementById('shopOverlay');
+  const shopOverlayCard = document.getElementById('shopOverlayCard');
+  let shopStep = 'menu';
+
+  function openShop(){
+    shopStep = 'menu';
+    renderShop();
+    shopOverlay.classList.remove('hidden');
+  }
+  function closeShop(){
+    shopOverlay.classList.add('hidden');
+  }
+
+  function shopHeader(card, title, sub){
+    const h2 = document.createElement('h2');
+    h2.textContent = title;
+    card.appendChild(h2);
+    const p = document.createElement('p');
+    p.textContent = sub;
+    card.appendChild(p);
+  }
+
+  function shopBackButton(card){
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'secondary';
+    backBtn.textContent = 'Back';
+    backBtn.addEventListener('click', ()=>{ shopStep = 'menu'; renderShop(); });
+    actions.appendChild(backBtn);
+    card.appendChild(actions);
+  }
+
+  function renderShop(){
+    shopOverlayCard.innerHTML = '';
+
+    if (shopStep === 'treathp' || shopStep === 'treatdmg'){
+      const isHp = shopStep === 'treathp';
+      const title = isHp ? 'HP Treat' : 'Power Treat';
+      const cap = isHp ? MAX_HP_TREATS : MAX_DMG_TREATS;
+      shopHeader(shopOverlayCard, title, 'Pick a pet. You have ' + playerXP + ' XP. Max ' + cap + ' per pet.');
+
+      const grid = document.createElement('div');
+      grid.className = 'pick-grid';
+      activeCats.forEach(c=>{
+        const used = isHp ? (c.bonusHp||0) : (c.bonusDmg||0);
+        const maxedOut = used >= cap;
+        const cost = TREAT_COST;
+        const card = document.createElement('div');
+        card.className = 'pick-card';
+
+        const mini = document.createElement('canvas');
+        mini.width = 56; mini.height = 56;
+        const mctx = mini.getContext('2d');
+        drawPet(mctx, 28, 34, 16, c.def, { stage: dragonStageFor(c) });
+        card.appendChild(mini);
+
+        const label = document.createElement('div');
+        label.className = 'pick-name';
+        label.textContent = petDisplayName(c) + ' (Lv.' + (c.level||1) + ') \u2014 ' +
+          (maxedOut ? 'Maxed (' + used + '/' + cap + ')' : cost + ' XP (' + used + '/' + cap + ')');
+        card.appendChild(label);
+
+        if (maxedOut || playerXP < cost) card.style.opacity = '0.5';
+        card.addEventListener('click', ()=>{
+          if (maxedOut || playerXP < cost) return;
+          playerXP -= cost;
+          if (isHp){
+            c.bonusHp = (c.bonusHp||0) + 1;
+            showToast(petDisplayName(c) + ' feels tougher!', 'good');
+          } else {
+            c.bonusDmg = (c.bonusDmg||0) + 1;
+            showToast(petDisplayName(c) + ' feels stronger!', 'good');
+          }
+          updateXPBadge();
+          renderCollection();
+          renderShop();
+          autosaveCurrentSlot();
+        });
+        grid.appendChild(card);
+      });
+      shopOverlayCard.appendChild(grid);
+      shopBackButton(shopOverlayCard);
+      return;
+    }
+
+    if (shopStep === 'unlockdog' || shopStep === 'unlockcat'){
+      const roster = shopStep === 'unlockdog' ? DOGS : CATS;
+      const options = roster.filter(d => !discovered.has(d.id) && !d.catchOnly);
+      shopHeader(shopOverlayCard, shopStep === 'unlockdog' ? 'Unlock a Dog Breed' : 'Unlock a Cat Breed', 'Costs ' + BREED_UNLOCK_COST + ' XP. You have ' + playerXP + ' XP.');
+
+      const grid = document.createElement('div');
+      grid.className = 'pick-grid';
+      options.forEach(def=>{
+        const card = document.createElement('div');
+        card.className = 'pick-card';
+
+        const mini = document.createElement('canvas');
+        mini.width = 56; mini.height = 56;
+        const mctx = mini.getContext('2d');
+        drawPet(mctx, 28, 34, 16, def, {});
+        card.appendChild(mini);
+
+        const label = document.createElement('div');
+        label.className = 'pick-name';
+        label.textContent = def.name;
+        card.appendChild(label);
+
+        if (playerXP < BREED_UNLOCK_COST) card.style.opacity = '0.5';
+        card.addEventListener('click', ()=>{
+          if (playerXP < BREED_UNLOCK_COST) return;
+          playerXP -= BREED_UNLOCK_COST;
+          discovered.add(def.id);
+          spawnCat(def);
+          updateXPBadge();
+          renderCollection();
+          showToast('\u2728 ' + def.name + ' joins you!', 'good');
+          shopStep = 'menu';
+          renderShop();
+          autosaveCurrentSlot();
+        });
+        grid.appendChild(card);
+      });
+      shopOverlayCard.appendChild(grid);
+      shopBackButton(shopOverlayCard);
+      return;
+    }
+
+    // menu
+    shopHeader(shopOverlayCard, '\ud83d\uded2 Shop', 'You have ' + playerXP + ' XP. Pets level up naturally by fighting in battles - spend XP here on treats and new breeds instead!');
+
+    const list = document.createElement('div');
+    const items = [
+      { label:'HP Treat', sub:'+1 max battle HP for one pet, up to ' + MAX_HP_TREATS + ' (' + TREAT_COST + ' XP)', enabled: activeCats.length>0, onClick:()=>{ shopStep='treathp'; renderShop(); } },
+      { label:'Power Treat', sub:'+1 attack damage for one pet, up to ' + MAX_DMG_TREATS + ' (' + TREAT_COST + ' XP)', enabled: activeCats.length>0, onClick:()=>{ shopStep='treatdmg'; renderShop(); } },
+      { label:'Unlock New Dog Breed', sub:'Discover a dog you haven\u2019t met (' + BREED_UNLOCK_COST + ' XP)', enabled: DOGS.some(d=>!discovered.has(d.id)), onClick:()=>{ shopStep='unlockdog'; renderShop(); } },
+      { label:'Unlock New Cat Breed', sub:'Discover a cat you haven\u2019t met (' + BREED_UNLOCK_COST + ' XP)', enabled: CATS.some(c=>!discovered.has(c.id)), onClick:()=>{ shopStep='unlockcat'; renderShop(); } }
+    ];
+    items.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      const info = document.createElement('div');
+      info.innerHTML = '<div class="shop-name">' + item.label + '</div><div class="shop-sub">' + item.sub + '</div>';
+      row.appendChild(info);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Go';
+      btn.disabled = !item.enabled;
+      btn.addEventListener('click', item.onClick);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+    shopOverlayCard.appendChild(list);
+
+    const actions = document.createElement('div');
+    actions.className = 'overlay-actions stacked';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'secondary';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', closeShop);
+    actions.appendChild(closeBtn);
+    shopOverlayCard.appendChild(actions);
+  }
+  updateXPBadge();
+
+  /* ------------------------------------------------------------------
+   * Hints (collapsed by default so it stays a fun secret)
+   * ---------------------------------------------------------------- */
+  const hintBox = document.getElementById('hintBox');
+  const hintToggle = document.getElementById('hintToggle');
+  hintToggle.addEventListener('click', ()=>{
+    const showing = hintBox.classList.toggle('show');
+    hintToggle.textContent = showing ? 'hide hints' : 'show hints';
+    hintBox.innerHTML = PETS.filter(c => c.code).map(c => `<div>${discovered.has(c.id) ? '✓' : '•'} <strong>${c.code}</strong> &rarr; ${c.name}</div>`).join('')
+      + '<div style="margin-top:6px;opacity:0.8;">🛒 A few rare breeds are shop-exclusive - visit the Shop stand!</div>';
+  });
+
+  /* ------------------------------------------------------------------
+   * Code entry / toasts
+   * ---------------------------------------------------------------- */
+  const form = document.getElementById('codeForm');
+  const toastArea = document.getElementById('toastArea');
+  const statusMsg = document.getElementById('statusMsg');
+
+  function showToast(text, kind){
+    const t = document.createElement('div');
+    t.className = 'toast ' + (kind||'');
+    t.textContent = text;
+    toastArea.appendChild(t);
+    setTimeout(()=> t.remove(), 2500);
+  }
+
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const raw = codeInput.value.trim().toUpperCase();
+    codeInput.value = '';
+    if (!raw) return;
+
+    const cat = PETS.find(c => c.code && c.code === raw);
+    if (cat){
+      const firstTime = !discovered.has(cat.id);
+      discovered.add(cat.id);
+      const existing = activeCats.find(c => c.def.id === cat.id);
+      if (existing){
+        existing.pounceUntil = performance.now() + 300;
+        spawnBurst(existing.x, existing.y, ['#ffe58a','#ffffff']);
+        renderCollection();
+        showToast(cat.name + ' is already with you!', 'good');
+        statusMsg.textContent = cat.name + ' is already here!';
+      } else {
+        spawnCat(cat);
+        renderCollection();
+        showToast((firstTime ? '✨ New! ' : '') + cat.name + ' appeared!', 'good');
+        statusMsg.textContent = cat.name + ' is here!';
+      }
+      autosaveCurrentSlot();
+    } else {
+      showToast('No pet answers to that code...', 'bad');
+      statusMsg.textContent = 'Unknown code. Try again!';
+      codeInput.classList.remove('shake');
+      void codeInput.offsetWidth;
+      codeInput.classList.add('shake');
+    }
+    codeInput.focus();
+  });
+
+})();
+</script>
+</body>
+</html>
